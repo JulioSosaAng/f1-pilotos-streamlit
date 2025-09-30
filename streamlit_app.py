@@ -184,62 +184,72 @@ else:
 st.divider()
 
 # ===================== 2) Poles y Vueltas Rápidas =====================
-c1, c2 = st.columns(2)
+# ===================== 2) Poles y Vueltas Rápidas =====================
+st.subheader("Poles por piloto")
+if "pole_driver" not in df_f.columns or len(df_f) == 0:
+    st.info("No hay columna 'pole_driver' o no hay filas tras el filtro.")
+else:
+    poles = (
+        df_f.dropna(subset=["pole_driver"])
+           .groupby(["season", "pole_driver"], as_index=False)
+           .size()
+           .rename(columns={"size": "poles"})
+    )
+    if piloto_sel:
+        poles = poles[poles["pole_driver"].isin(piloto_sel)]
+    
+    poles["season"] = poles["season"].astype("Int64").astype(str)
 
-with c1:
-    st.subheader("Poles por piloto")
-    if "pole_driver" not in df_f.columns or len(df_f) == 0:
-        st.info("No hay columna 'pole_driver' o no hay filas tras el filtro.")
-    else:
-        poles = (
-            df_f.dropna(subset=["pole_driver"])
-               .groupby(["season", "pole_driver"], as_index=False)
-               .size()
-               .rename(columns={"size": "poles"})
-        )
-        if piloto_sel:
-            poles = poles[poles["pole_driver"].isin(piloto_sel)]
-        
-        poles["season"] = poles["season"].astype("Int64").astype(str)      # <- NUEVO
+    fig_poles = px.bar(
+        poles.sort_values(["season", "poles"], ascending=[True, False]),
+        x="pole_driver", y="poles", color="season", barmode="group",
+        category_orders={"season": season_order},
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        labels={"pole_driver": "Piloto", "poles": "Poles", "season": "Temporada"},
+        title="Poles por piloto",
+    )
+    fig_poles.update_layout(
+        margin=dict(l=10, r=10, t=60, b=10),
+        xaxis_tickangle=45,
+        legend_title_text="Temporada"
+    )
+    st.plotly_chart(fig_poles, use_container_width=True)
 
-        fig_poles = px.bar(
-            poles.sort_values(["season", "poles"], ascending=[True, False]),
-            x="pole_driver", y="poles", color="season", barmode="group",
-            category_orders={"season": season_order},                      # <- NUEVO
-            color_discrete_sequence=px.colors.qualitative.Set2,            # <- NUEVO
-            labels={"pole_driver": "Piloto", "poles": "Poles", "season": "Temporada"},
-            title="Poles por piloto",
-        )
-        fig_poles.update_layout(margin=dict(l=10, r=10, t=60, b=10), xaxis_tickangle=45, legend_title_text="Temporada")
-        st.plotly_chart(fig_poles, use_container_width=True)
+st.divider()
 
-with c2:
-    st.subheader("Vueltas rápidas por piloto")
-    if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
-        st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
-    else:
-        fl = (
-            df_f.dropna(subset=["fastest_lap_driver"])
-               .groupby(["season", "fastest_lap_driver"], as_index=False)
-               .size()
-               .rename(columns={"size": "fastest_laps"})
-        )
-        if piloto_sel:
-            fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
+st.subheader("Vueltas rápidas por piloto")
+if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
+    st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
+else:
+    fl = (
+        df_f.dropna(subset=["fastest_lap_driver"])
+           .groupby(["season", "fastest_lap_driver"], as_index=False)
+           .size()
+           .rename(columns={"size": "fastest_laps"})
+    )
+    if piloto_sel:
+        fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
-        fl["season"] = fl["season"].astype("Int64").astype(str)            # <- NUEVO
+    fl["season"] = fl["season"].astype("Int64").astype(str)
 
-        fig_fl = px.bar(
-            fl.sort_values(["season", "fastest_laps"], ascending=[True, False]),
-            x="fastest_lap_driver", y="fastest_laps", color="season", barmode="group",
-            category_orders={"season": season_order},                      # <- NUEVO
-            color_discrete_sequence=px.colors.qualitative.Set2,            # <- NUEVO
-            labels={"fastest_lap_driver": "Piloto", "fastest_laps": "VR", "season": "Temporada"},
-            title="Vueltas rápidas por piloto",
-        )
-
-        fig_fl.update_layout(margin=dict(l=10, r=10, t=60, b=10), xaxis_tickangle=45, legend_title_text="Temporada")
-        st.plotly_chart(fig_fl, use_container_width=True)
+    fig_fl = px.bar(
+        fl.sort_values(["season", "fastest_laps"], ascending=[True, False]),
+        x="fastest_lap_driver", y="fastest_laps", color="season", barmode="group",
+        category_orders={"season": season_order},
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        labels={
+            "fastest_lap_driver": "Piloto",
+            "fastest_laps": "VR",
+            "season": "Temporada"
+        },
+        title="Vueltas rápidas por piloto",
+    )
+    fig_fl.update_layout(
+        margin=dict(l=10, r=10, t=60, b=10),
+        xaxis_tickangle=45,
+        legend_title_text="Temporada"
+    )
+    st.plotly_chart(fig_fl, use_container_width=True)
 
 st.divider()
 

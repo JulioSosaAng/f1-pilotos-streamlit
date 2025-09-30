@@ -221,47 +221,59 @@ else:
 
 st.divider()
 
-st.subheader("Vueltas rápidas por piloto (Tendencia por Temporada)")
+st.subheader("Vueltas rápidas por piloto (Tendencia por Mes)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
-    # Agrupar por temporada y piloto (necesario para el gráfico de líneas)
-    fl = (
-        df_f.dropna(subset=["fastest_lap_driver"])
-            .groupby(["season", "fastest_lap_driver"], as_index=False)
-            .size()
-            .rename(columns={"size": "fastest_laps"})
-    )
-    if piloto_sel:
-        fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
+    # 1. Asegurarse de que la columna de fecha (asumo que es 'date') esté en formato datetime
+    if 'date' in df_f.columns:
+        df_f['date'] = pd.to_datetime(df_f['date'])
+        
+        # 2. Agrupar por la fecha de la carrera y el piloto
+        fl = (
+            df_f.dropna(subset=["fastest_lap_driver", "date"])
+                .groupby(["date", "fastest_lap_driver"], as_index=False)
+                .size()
+                .rename(columns={"size": "fastest_laps"})
+        )
+        if piloto_sel:
+            fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
-    fl["season"] = fl["season"].astype("Int64").astype(str)
+        # 3. Crear una columna para el formato deseado en el eje X (ej: 'Ene 24', 'Feb 24')
+        fl["month_year"] = fl["date"].dt.strftime('%b %y')
+        
+        # Ordenar los datos por fecha para la secuencia correcta de la línea
+        fl_sorted = fl.sort_values("date", ascending=True)
 
-    # === Gráfico de Líneas (Line Chart) para Vueltas Rápidas ===
-    fig_fl = px.line(
-        fl.sort_values("season", ascending=True),
-        x="season", 
-        y="fastest_laps", 
-        color="fastest_lap_driver", # Color para diferenciar la línea de cada piloto
-        markers=True, # Mostrar marcadores en los puntos de datos
-        category_orders={"season": season_order},
-        color_discrete_sequence=px.colors.qualitative.Dark24, # Secuencia de colores
-        labels={
-            "fastest_lap_driver": "Piloto",
-            "fastest_laps": "VR",
-            "season": "Temporada"
-        },
-        title="Vueltas Rápidas por Piloto a lo largo de las Temporadas",
-    )
-    
-    fig_fl.update_layout(
-        margin=dict(l=10, r=10, t=60, b=10),
-        xaxis_tickangle=45,
-        legend_title_text="Piloto",
-        xaxis_title="Temporada",
-        yaxis_title="Vueltas Rápidas (VR)"
-    )
-    st.plotly_chart(fig_fl, use_container_width=True)
+        # Usar la nueva columna 'month_year' como eje X
+        fig_fl = px.line(
+            fl_sorted,
+            x="month_year", 
+            y="fastest_laps", 
+            color="fastest_lap_driver",
+            markers=True,
+            # category_orders: Opcional, si quieres asegurar un orden específico de los meses
+            # category_orders={"month_year": fl_sorted["month_year"].unique().tolist()},
+            color_discrete_sequence=px.colors.qualitative.Dark24,
+            labels={
+                "fastest_lap_driver": "Piloto",
+                "fastest_laps": "VR",
+                "month_year": "Carrera (Mes/Año)"
+            },
+            title="Vueltas Rápidas por Piloto a lo largo de las Carreras (Mes)",
+        )
+        
+        fig_fl.update_layout(
+            margin=dict(l=10, r=10, t=60, b=10),
+            xaxis_tickangle=45,
+            legend_title_text="Piloto",
+            xaxis_title="Mes de la Carrera",
+            yaxis_title="Vueltas Rápidas (VR)"
+        )
+        st.plotly_chart(fig_fl, use_container_width=True)
+        
+    else:
+        st.warning("¡Advertencia! La columna 'date' no se encontró en el DataFrame. Asegúrate de tener la fecha de la carrera para graficar por mes.")
 
 st.divider()
 

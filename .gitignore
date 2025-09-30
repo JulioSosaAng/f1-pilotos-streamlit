@@ -1,0 +1,86 @@
+# =========================
+# Python / Streamlit app
+# =========================
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Extensiones binarias (Cython/compilados)
+*.pyd
+*.so
+*.dylib
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+.conda/
+.conda_env/
+
+# Build / distribución
+build/
+dist/
+*.egg-info/
+.eggs/
+.wheelhouse/
+pip-wheel-metadata/
+.installed.cfg
+
+# Tests / cobertura / tipos
+.pytest_cache/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.tox/
+.nox/
+.mypy_cache/
+.pyre/
+.pytype/
+ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs / temporales
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+
+# Variables de entorno / credenciales
+.env
+.env.*
+*.env
+*.env.*
+
+# Streamlit (NO subir secretos)
+.streamlit/secrets.toml
+# (opcional) si querés versionar config, dejá estos archivos:
+!.streamlit/
+!.streamlit/config.toml
+
+# Sistema operativo
+.DS_Store
+Icon?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDEs / editores
+.vscode/
+.idea/
+*.code-workspace
+
+# Archivos de proyecto opcionales
+*.bak
+*.swp
+*.swo

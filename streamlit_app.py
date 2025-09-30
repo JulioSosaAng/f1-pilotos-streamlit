@@ -221,15 +221,14 @@ else:
 
 st.divider()
 
-st.subheader("Vueltas rápidas por piloto (Tendencia por Mes)")
+st.subheader("Vueltas rápidas por piloto (Conteo por Mes)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
-    # 1. Asegurarse de que la columna de fecha (asumo que es 'date') esté en formato datetime
+    # 1. Asegurar formato datetime y agrupar por fecha/carrera
     if 'date' in df_f.columns:
         df_f['date'] = pd.to_datetime(df_f['date'])
         
-        # 2. Agrupar por la fecha de la carrera y el piloto
         fl = (
             df_f.dropna(subset=["fastest_lap_driver", "date"])
                 .groupby(["date", "fastest_lap_driver"], as_index=False)
@@ -239,28 +238,27 @@ else:
         if piloto_sel:
             fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
-        # 3. Crear una columna para el formato deseado en el eje X (ej: 'Ene 24', 'Feb 24')
+        # 2. Columna para el eje X (ej: 'Ene 24')
         fl["month_year"] = fl["date"].dt.strftime('%b %y')
         
-        # Ordenar los datos por fecha para la secuencia correcta de la línea
+        # 3. Ordenar por fecha para asegurar que las barras se muestren cronológicamente
         fl_sorted = fl.sort_values("date", ascending=True)
 
-        # Usar la nueva columna 'month_year' como eje X
-        fig_fl = px.line(
+        # === Gráfico de BARRAS (Bar Chart) para Vueltas Rápidas ===
+        fig_fl = px.bar(
             fl_sorted,
             x="month_year", 
             y="fastest_laps", 
-            color="fastest_lap_driver",
-            markers=True,
-            # category_orders: Opcional, si quieres asegurar un orden específico de los meses
-            # category_orders={"month_year": fl_sorted["month_year"].unique().tolist()},
+            color="fastest_lap_driver", # Las barras se agrupan por color (piloto)
+            barmode="group", # Fundamental para ver las barras de los pilotos uno al lado del otro
+            category_orders={"month_year": fl_sorted["month_year"].unique().tolist()},
             color_discrete_sequence=px.colors.qualitative.Dark24,
             labels={
                 "fastest_lap_driver": "Piloto",
                 "fastest_laps": "VR",
                 "month_year": "Carrera (Mes/Año)"
             },
-            title="Vueltas Rápidas por Piloto a lo largo de las Carreras (Mes)",
+            title="Conteo de Vueltas Rápidas por Piloto y Mes",
         )
         
         fig_fl.update_layout(
@@ -268,12 +266,12 @@ else:
             xaxis_tickangle=45,
             legend_title_text="Piloto",
             xaxis_title="Mes de la Carrera",
-            yaxis_title="Vueltas Rápidas (VR)"
+            yaxis_title="Vueltas Rápidas (Conteo)"
         )
         st.plotly_chart(fig_fl, use_container_width=True)
         
     else:
-        st.warning("¡Advertencia! La columna 'date' no se encontró en el DataFrame. Asegúrate de tener la fecha de la carrera para graficar por mes.")
+        st.warning("¡Advertencia! La columna 'date' no se encontró. No se puede graficar por mes.")
 
 st.divider()
 

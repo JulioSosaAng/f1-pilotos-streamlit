@@ -184,70 +184,82 @@ else:
 st.divider()
 
 # ===================== 2) Poles y Vueltas Rápidas =====================
-# ===================== 2) Poles y Vueltas Rápidas =====================
-st.subheader("Poles por piloto")
+st.subheader("Poles por piloto (Total)")
 if "pole_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'pole_driver' o no hay filas tras el filtro.")
 else:
-    poles = (
+    # Agrupar el total de poles por piloto (ignorando la temporada para el gráfico de torta)
+    poles_total = (
         df_f.dropna(subset=["pole_driver"])
-           .groupby(["season", "pole_driver"], as_index=False)
-           .size()
-           .rename(columns={"size": "poles"})
+            .groupby("pole_driver", as_index=False)
+            .size()
+            .rename(columns={"size": "poles"})
+            .sort_values("poles", ascending=False)
     )
-    if piloto_sel:
-        poles = poles[poles["pole_driver"].isin(piloto_sel)]
-    
-    poles["season"] = poles["season"].astype("Int64").astype(str)
 
-    fig_poles = px.bar(
-        poles.sort_values(["season", "poles"], ascending=[True, False]),
-        x="pole_driver", y="poles", color="season", barmode="group",
-        category_orders={"season": season_order},
-        color_discrete_sequence=px.colors.qualitative.Set2,
-        labels={"pole_driver": "Piloto", "poles": "Poles", "season": "Temporada"},
-        title="Poles por piloto",
+    if piloto_sel:
+        poles_total = poles_total[poles_total["pole_driver"].isin(piloto_sel)]
+
+    # === Gráfico de Torta (Pie Chart) para Poles ===
+    fig_poles = px.pie(
+        poles_total,
+        names="pole_driver",
+        values="poles",
+        color="pole_driver",
+        color_discrete_sequence=px.colors.qualitative.Pastel, # Secuencia de colores más apropiada para torta
+        labels={"pole_driver": "Piloto", "poles": "Poles"},
+        title="Total de Poles por Piloto",
     )
+    
+    fig_poles.update_traces(textposition='inside', textinfo='percent+label') # Muestra porcentaje y etiqueta
+    
     fig_poles.update_layout(
         margin=dict(l=10, r=10, t=60, b=10),
-        xaxis_tickangle=45,
-        legend_title_text="Temporada"
+        legend_title_text="Piloto"
     )
     st.plotly_chart(fig_poles, use_container_width=True)
 
 st.divider()
 
-st.subheader("Vueltas rápidas por piloto")
+st.subheader("Vueltas rápidas por piloto (Tendencia por Temporada)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
+    # Agrupar por temporada y piloto (necesario para el gráfico de líneas)
     fl = (
         df_f.dropna(subset=["fastest_lap_driver"])
-           .groupby(["season", "fastest_lap_driver"], as_index=False)
-           .size()
-           .rename(columns={"size": "fastest_laps"})
+            .groupby(["season", "fastest_lap_driver"], as_index=False)
+            .size()
+            .rename(columns={"size": "fastest_laps"})
     )
     if piloto_sel:
         fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
     fl["season"] = fl["season"].astype("Int64").astype(str)
 
-    fig_fl = px.bar(
-        fl.sort_values(["season", "fastest_laps"], ascending=[True, False]),
-        x="fastest_lap_driver", y="fastest_laps", color="season", barmode="group",
+    # === Gráfico de Líneas (Line Chart) para Vueltas Rápidas ===
+    fig_fl = px.line(
+        fl.sort_values("season", ascending=True),
+        x="season", 
+        y="fastest_laps", 
+        color="fastest_lap_driver", # Color para diferenciar la línea de cada piloto
+        markers=True, # Mostrar marcadores en los puntos de datos
         category_orders={"season": season_order},
-        color_discrete_sequence=px.colors.qualitative.Set2,
+        color_discrete_sequence=px.colors.qualitative.Dark24, # Secuencia de colores
         labels={
             "fastest_lap_driver": "Piloto",
             "fastest_laps": "VR",
             "season": "Temporada"
         },
-        title="Vueltas rápidas por piloto",
+        title="Vueltas Rápidas por Piloto a lo largo de las Temporadas",
     )
+    
     fig_fl.update_layout(
         margin=dict(l=10, r=10, t=60, b=10),
         xaxis_tickangle=45,
-        legend_title_text="Temporada"
+        legend_title_text="Piloto",
+        xaxis_title="Temporada",
+        yaxis_title="Vueltas Rápidas (VR)"
     )
     st.plotly_chart(fig_fl, use_container_width=True)
 

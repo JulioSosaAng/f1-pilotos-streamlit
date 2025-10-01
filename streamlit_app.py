@@ -297,41 +297,36 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     if piloto_sel:
         conv = conv[conv["pole_driver"].isin(piloto_sel)]
 
-    conv["season"] = conv["season"].astype("Int64").astype(str)
-
+    # CORRECCIÓN: Asegurar que 'season' sea texto
+    conv["season"] = conv["season"].astype("Int64").astype(str)  # Esto ya lo tienes
+    
     # GRÁFICO DE LÍNEAS - Tendencias temporales
     st.write("### 📈 Evolución Temporal - Conversión Pole→Victoria")
     
-    # Selector de pilotos para mejor visualización - MOVER ANTES DEL GRÁFICO
     todos_pilotos = conv['pole_driver'].unique().tolist()
     
-    # FILTRO POR FUERA DEL GRÁFICO - ESTA PARTE VA ANTES
-    if len(todos_pilotos) > 8:
-        st.info(f"🔍 Hay {len(todos_pilotos)} pilotos. Considera filtrar para mejor visualización.")
-    
-    # CREAR EL SELECTOR EN UNA SECCIÓN SEPARADA
+    # Selector de pilotos
     pilotos_para_grafico = st.multiselect(
         "Selecciona pilotos para el gráfico de líneas:",
         options=todos_pilotos,
-        default=todos_pilotos[:min(6, len(todos_pilotos))],  # Máximo 6 por defecto
+        default=todos_pilotos[:min(6, len(todos_pilotos))],
         key="line_chart_pilots"
     )
     
-    # LÍNEA DIVISORIA PARA SEPARAR FILTRO DEL GRÁFICO
     st.markdown("---")
     
-    # AHORA SÍ CREAR EL GRÁFICO
     if pilotos_para_grafico:
         conv_filtrado = conv[conv['pole_driver'].isin(pilotos_para_grafico)]
         
+        # CORRECCIÓN PRINCIPAL: Forzar eje X como categorías discretas
         fig_line = px.line(
             conv_filtrado.sort_values(["season", "conversion_pct"], ascending=[True, False]),
             x="season", 
             y="conversion_pct", 
             color="pole_driver",
             markers=True,
-            line_shape="spline",
-            category_orders={"season": season_order},
+            line_shape="linear",  # Cambiar a linear para categorías
+            category_orders={"season": sorted(conv_filtrado['season'].unique())},  # Orden explícito
             color_discrete_sequence=px.colors.qualitative.Bold,
             labels={
                 "pole_driver": "Piloto", 
@@ -342,6 +337,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             hover_data={"poles": True, "wins_from_pole": True}
         )
         
+        # CORRECCIÓN CRÍTICA: Configurar eje X como discreto
         fig_line.update_layout(
             yaxis_ticksuffix="%", 
             yaxis_range=[0, 100],
@@ -350,6 +346,12 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             legend_title="Piloto",
             height=500,
             hovermode="x unified",
+            xaxis=dict(
+                type='category',  # ← ESTO ES CLAVE: forzar tipo categórico
+                tickmode='array',
+                tickvals=sorted(conv_filtrado['season'].unique()),  # Valores explícitos
+                ticktext=sorted(conv_filtrado['season'].unique())   # Texto explícito
+            )
         )
         
         fig_line.add_hline(y=50, line_dash="dash", line_color="orange")
@@ -365,7 +367,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     else:
         st.info("👆 Selecciona al menos un piloto para generar el gráfico.")
 
-    # VISTA COMPACTA
+    # Vista compacta
     st.write("---")
     st.write("### 🗺️ Vista General - Todos los Pilotos")
 
@@ -387,7 +389,9 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
         )
 
 else:
-        st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
+    st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
+
+st.divider()
 
 # ===================== Pie =====================
 st.caption("Fuente: Ergast (ingesta propia). Gráficos: Plotly Express • App: Streamlit.")

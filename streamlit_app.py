@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import streamlit as st
 import re
@@ -281,7 +282,7 @@ else:
 st.divider()
 
 # ===================== 3) Conversión Pole → Victoria =====================
-st.subheader("Conversión Pole → Victoria por piloto (solo pilotos con al menos 1 pole)")
+st.subheader("Conversión Pole → Victoria por piloto")
 
 if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     df_tmp = df_f.copy()
@@ -297,96 +298,113 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     if piloto_sel:
         conv = conv[conv["pole_driver"].isin(piloto_sel)]
 
-    # CORRECCIÓN: Asegurar que 'season' sea texto
-    conv["season"] = conv["season"].astype("Int64").astype(str)  # Esto ya lo tienes
+    conv["season"] = conv["season"].astype("Int64").astype(str)
+
+    # HEATMAP - Vista óptima
+    st.write("### 🗺️ Mapa de Eficiencia - Conversión Pole→Victoria")
     
-    # GRÁFICO DE LÍNEAS - Tendencias temporales
-    st.write("### 📈 Evolución Temporal - Conversión Pole→Victoria")
+    # Preparar datos para heatmap
+    heatmap_data = conv.pivot_table(
+        index='pole_driver',
+        columns='season', 
+        values='conversion_pct',
+        fill_value=0
+    ).round(1)
     
-    todos_pilotos = conv['pole_driver'].unique().tolist()
+    # Calcular estadísticas para ordenar
+    heatmap_data['total_poles'] = conv.groupby('pole_driver')['poles'].sum()
+    heatmap_data['avg_conversion'] = heatmap_data.mean(axis=1)
+    heatmap_data['total_wins'] = conv.groupby('pole_driver')['wins_from_pole'].sum()
     
-    # Selector de pilotos
-    pilotos_para_grafico = st.multiselect(
-        "Selecciona pilotos para el gráfico de líneas:",
-        options=todos_pilotos,
-        default=todos_pilotos[:min(6, len(todos_pilotos))],
-        key="line_chart_pilots"
+    # Ordenar por eficiencia promedio (mejores primero)
+    heatmap_data = heatmap_data.sort_values('avg_conversion', ascending=False)
+    
+    # Separar datos de estadísticas para el heatmap
+    heatmap_display = heatmap_data.drop(['total_poles', 'avg_conversion', 'total_wins'], axis=1)
+    
+    # Crear heatmap
+    fig_heat = px.imshow(
+        heatmap_display,
+        title="Porcentaje de Conversión Pole → Victoria",
+        color_continuous_scale='RdYlGn',
+        aspect="auto",
+        labels=dict(x="Temporada", y="Piloto", color="Conversión %"),
+        zmin=0,
+        zmax=100
     )
     
-    st.markdown("---")
+    # Agregar valores en las celdas
+    for i in range(len(heatmap_display.index)):
+        for j in range(len(heatmap_display.columns)):
+            value = heatmap_display.iloc[i, j]
+            if value > 0:  # Solo mostrar valores > 0
+                fig_heat.add_annotation(
+                    x=j, y=i,
+                    text=f"{value:.0f}%",
+                    showarrow=False,
+                    font=dict(
+                        color='white' if value > 50 else 'black', 
+                        size=11,
+                        weight='bold'
+                    )
+                )
     
-    if pilotos_para_grafico:
-        conv_filtrado = conv[conv['pole_driver'].isin(pilotos_para_grafico)]
-        
-        # CORRECCIÓN PRINCIPAL: Forzar eje X como categorías discretas
-        fig_line = px.line(
-            conv_filtrado.sort_values(["season", "conversion_pct"], ascending=[True, False]),
-            x="season", 
-            y="conversion_pct", 
-            color="pole_driver",
-            markers=True,
-            line_shape="linear",  # Cambiar a linear para categorías
-            category_orders={"season": sorted(conv_filtrado['season'].unique())},  # Orden explícito
-            color_discrete_sequence=px.colors.qualitative.Bold,
-            labels={
-                "pole_driver": "Piloto", 
-                "conversion_pct": "Porcentaje de Conversión (%)", 
-                "season": "Temporada"
-            },
-            title="Evolución de Conversión Pole → Victoria por Temporada",
-            hover_data={"poles": True, "wins_from_pole": True}
+    # Mejorar diseño
+    fig_heat.update_layout(
+        height=max(400, len(heatmap_display) * 30),  # Altura dinámica
+        xaxis=dict(side="top"),
+        coloraxis_colorbar=dict(
+            title="% Conversión",
+            titleside="right",
+            tickvals=[0, 25, 50, 75, 100],
+            ticktext=["0%", "25%", "50%", "75%", "100%"]
         )
+    )
+    
+    # Configurar ejes
+    fig_heat.update_xaxes(tickangle=0)
+    fig_heat.update_yaxes(tickangle=0)
+    
+    st.plotly_chart(fig_heat, use_container_width=True)
+    
+    # TABLA RESUMEN DE ESTADÍSTICAS
+    st.write("### 📊 Estadísticas Detalladas")
+    
+    stats_summary = pd.DataFrame({
+        'Piloto': heatmap_data.index,
+        'Poles Totales': heatmap_data['total_poles'].astype(int),
+        'Victorias desde Pole': heatmap_data['total_wins'].astype(int),
+        'Eficiencia Promedio': heatmap_data['avg_conversion'].round(1).astype(str) + '%',
+        'Mejor Temporada': heatmap_display.max(axis=1).round(1).astype(str) + '%',
+        'Peor Temporada': heatmap_display.replace(0, np.nan).min(axis=1).round(1).astype(str) + '%'
+    })
+    
+    st.dataframe(stats_summary, use_container_width=True)
+    
+    # ANÁLISES ADICIONALES
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("#### 🏆 Top 5 Más Eficientes")
+        top_eficientes = stats_summary.nlargest(5, 'Eficiencia Promedio')
+        for idx, row in top_eficientes.iterrows():
+            st.write(f"**{row['Piloto']}**: {row['Eficiencia Promedio']}")
+    
+    with col2:
+        st.write("#### 📈 Mejora Consistente")
+        # Identificar pilotos que mejoraron temporada tras temporada
+        improvement_data = []
+        for piloto in heatmap_display.index:
+            valores = heatmap_display.loc[piloto].replace(0, np.nan).dropna()
+            if len(valores) > 1:
+                mejora = valores.iloc[-1] - valores.iloc[0]
+                improvement_data.append({'Piloto': piloto, 'Mejora': mejora})
         
-        # CORRECCIÓN CRÍTICA: Configurar eje X como discreto
-        fig_line.update_layout(
-            yaxis_ticksuffix="%", 
-            yaxis_range=[0, 100],
-            xaxis_title="Temporada",
-            yaxis_title="Porcentaje de Conversión (%)",
-            legend_title="Piloto",
-            height=500,
-            hovermode="x unified",
-            xaxis=dict(
-                type='category',  # ← ESTO ES CLAVE: forzar tipo categórico
-                tickmode='array',
-                tickvals=sorted(conv_filtrado['season'].unique()),  # Valores explícitos
-                ticktext=sorted(conv_filtrado['season'].unique())   # Texto explícito
-            )
-        )
-        
-        fig_line.add_hline(y=50, line_dash="dash", line_color="orange")
-        fig_line.add_hline(y=75, line_dash="dot", line_color="green")
-        
-        fig_line.update_traces(
-            line=dict(width=3),
-            marker=dict(size=8)
-        )
-        
-        st.plotly_chart(fig_line, use_container_width=True)
-        
-    else:
-        st.info("👆 Selecciona al menos un piloto para generar el gráfico.")
-
-    # Vista compacta
-    st.write("---")
-    st.write("### 🗺️ Vista General - Todos los Pilotos")
-
-    if len(todos_pilotos) > 1:
-        pivot_conv = conv.pivot_table(
-            index='pole_driver',
-            columns='season', 
-            values='conversion_pct',
-            fill_value=0
-        ).round(1)
-
-        pivot_conv['promedio'] = pivot_conv.mean(axis=1)
-        pivot_conv = pivot_conv.sort_values('promedio', ascending=False)
-        pivot_conv = pivot_conv.drop('promedio', axis=1)
-
-        st.dataframe(
-            pivot_conv.style.format("{:.1f}%"),
-            use_container_width=True
-        )
+        if improvement_data:
+            df_mejora = pd.DataFrame(improvement_data)
+            top_mejoras = df_mejora.nlargest(3, 'Mejora')
+            for _, row in top_mejoras.iterrows():
+                st.write(f"**{row['Piloto']}**: {row['Mejora']:+.1f}%")
 
 else:
     st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")

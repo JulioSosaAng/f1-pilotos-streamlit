@@ -221,57 +221,66 @@ else:
 
 st.divider()
 
-st.subheader("Vueltas rápidas por piloto (Conteo por Mes)")
+st.subheader("Vueltas rápidas por piloto (Conteo por Circuito)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
-    # 1. Asegurar formato datetime y agrupar por fecha/carrera
-    if 'date' in df_f.columns:
+    # Ahora usamos "gp_name" como nombre de la columna para el circuito
+    if 'gp_name' in df_f.columns and 'date' in df_f.columns:
+        
+        # 1. Asegurar formato datetime y agrupar por fecha/carrera
         df_f['date'] = pd.to_datetime(df_f['date'])
         
+        # Agrupamos por fecha (para ordenar), nombre del GP (gp_name), y piloto
         fl = (
-            df_f.dropna(subset=["fastest_lap_driver", "date"])
-                .groupby(["date", "fastest_lap_driver"], as_index=False)
+            df_f.dropna(subset=["fastest_lap_driver", "date", "gp_name"])
+                .groupby(["date", "gp_name", "fastest_lap_driver"], as_index=False)
                 .size()
                 .rename(columns={"size": "fastest_laps"})
         )
         if piloto_sel:
             fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
-        # 2. Columna para el eje X (ej: 'Ene 24')
-        fl["month_year"] = fl["date"].dt.strftime('%b %y')
-        
-        # 3. Ordenar por fecha para asegurar que las barras se muestren cronológicamente
+        # 2. Ordenar por fecha para asegurar que el orden del eje X sea correcto
         fl_sorted = fl.sort_values("date", ascending=True)
+
+        # 3. Crear una lista de nombres de GP ordenados para el eje X
+        gp_order = fl_sorted["gp_name"].unique().tolist()
 
         # === Gráfico de BARRAS (Bar Chart) para Vueltas Rápidas ===
         fig_fl = px.bar(
             fl_sorted,
-            x="month_year", 
+            x="gp_name", # ¡Cambiado a "gp_name"!
             y="fastest_laps", 
-            color="fastest_lap_driver", # Las barras se agrupan por color (piloto)
-            barmode="group", # Fundamental para ver las barras de los pilotos uno al lado del otro
-            category_orders={"month_year": fl_sorted["month_year"].unique().tolist()},
+            color="fastest_lap_driver", 
+            barmode="group",
+            category_orders={"gp_name": gp_order}, # ¡Cambiado a "gp_name"!
             color_discrete_sequence=px.colors.qualitative.Dark24,
             labels={
                 "fastest_lap_driver": "Piloto",
                 "fastest_laps": "VR",
-                "month_year": "Carrera (Mes/Año)"
+                "gp_name": "Gran Premio" # Etiqueta actualizada
             },
-            title="Conteo de Vueltas Rápidas por Piloto y Mes",
+            title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
+        )
+        
+        # 4. Ajustar el ancho de las barras (más amigable)
+        fig_fl.update_layout(
+            bargap=0.1,    # Espacio entre grupos de barras (GPs)
+            bargroupgap=0.1 # Espacio entre barras individuales dentro del grupo (pilotos)
         )
         
         fig_fl.update_layout(
             margin=dict(l=10, r=10, t=60, b=10),
             xaxis_tickangle=45,
             legend_title_text="Piloto",
-            xaxis_title="Mes de la Carrera",
+            xaxis_title="Gran Premio",
             yaxis_title="Vueltas Rápidas (Conteo)"
         )
         st.plotly_chart(fig_fl, use_container_width=True)
         
     else:
-        st.warning("¡Advertencia! La columna 'date' no se encontró. No se puede graficar por mes.")
+        st.warning("¡Advertencia! Asegúrate de que las columnas 'gp_name' y 'date' estén en tu DataFrame para graficar por Gran Premio.")
 
 st.divider()
 

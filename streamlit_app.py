@@ -225,7 +225,6 @@ st.subheader("Vueltas rápidas por piloto (Conteo por Circuito)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
-    # Ahora usamos "gp_name" como nombre de la columna para el circuito
     if 'gp_name' in df_f.columns and 'date' in df_f.columns:
         
         # 1. Asegurar formato datetime y agrupar por fecha/carrera
@@ -250,25 +249,30 @@ else:
         # === Gráfico de BARRAS (Bar Chart) para Vueltas Rápidas ===
         fig_fl = px.bar(
             fl_sorted,
-            x="gp_name", # ¡Cambiado a "gp_name"!
+            x="gp_name",
             y="fastest_laps", 
             color="fastest_lap_driver", 
             barmode="group",
-            category_orders={"gp_name": gp_order}, # ¡Cambiado a "gp_name"!
+            category_orders={"gp_name": gp_order},
             color_discrete_sequence=px.colors.qualitative.Dark24,
             labels={
                 "fastest_lap_driver": "Piloto",
                 "fastest_laps": "VR",
-                "gp_name": "Gran Premio" # Etiqueta actualizada
+                "gp_name": "Gran Premio"
             },
             title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
         )
         
-        # 4. Ajustar el ancho de las barras (más amigable)
+        # 4. Ajustar el ancho de las barras y la separación (aún más ancho)
         fig_fl.update_layout(
-            bargap=0.1,    # Espacio entre grupos de barras (GPs)
-            bargroupgap=0.1 # Espacio entre barras individuales dentro del grupo (pilotos)
+            # Reducimos el espacio entre grupos (carreras) para que las barras sean más anchas
+            bargap=0.05, 
+            # Reducimos el espacio dentro del grupo (entre pilotos)
+            bargroupgap=0.01 
         )
+        
+        # 5. Forzar el eje Y a mostrar solo números enteros (sin 0.5 o 1.5)
+        fig_fl.update_yaxes(tick0=0, dtick=1) # tick0=0 empieza en 0, dtick=1 salta de uno en uno
         
         fig_fl.update_layout(
             margin=dict(l=10, r=10, t=60, b=10),

@@ -422,6 +422,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
 
 else:
     st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
+st.divider()
 
 # ===================== Pie =====================
 st.caption("Fuente: Ergast (ingesta propia). Gráficos: Plotly Express • App: Streamlit.")

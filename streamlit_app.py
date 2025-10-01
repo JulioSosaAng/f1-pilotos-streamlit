@@ -310,7 +310,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
         pilotos_para_grafico = st.multiselect(
             "Selecciona pilotos para el gráfico de líneas:",
             options=todos_pilotos,
-            default=todos_pilotos[:6],  # Mostrar máximo 6 por defecto
+            default=todos_pilotos[:6],
             key="line_chart_pilots"
         )
     else:
@@ -325,7 +325,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             y="conversion_pct", 
             color="pole_driver",
             markers=True,
-            line_shape="spline",  # Líneas suavizadas
+            line_shape="spline",
             category_orders={"season": season_order},
             color_discrete_sequence=px.colors.qualitative.Bold,
             labels={
@@ -333,11 +333,10 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
                 "conversion_pct": "Porcentaje de Conversión (%)", 
                 "season": "Temporada"
             },
-            title="Evolución de Conversión Pole → Victoria por Temporada<br><sub>Porcentaje de poles que terminan en victoria</sub>",
-            hover_data={"poles": True, "wins_from_pole": True}  # Datos adicionales en hover
+            title="Evolución de Conversión Pole → Victoria por Temporada",
+            hover_data={"poles": True, "wins_from_pole": True}
         )
         
-        # MEJORAS VISUALES
         fig_line.update_layout(
             yaxis_ticksuffix="%", 
             yaxis_range=[0, 100],
@@ -345,61 +344,23 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             yaxis_title="Porcentaje de Conversión (%)",
             legend_title="Piloto",
             height=500,
-            hovermode="x unified",  # Muestra todos los valores en el mismo x
-            showlegend=True,
-            plot_bgcolor='rgba(0,0,0,0.05)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified",
         )
         
-        # Líneas de referencia
-        fig_line.add_hline(y=50, line_dash="dash", line_color="orange", 
-                          annotation_text="50% - Referencia", annotation_position="right")
-        fig_line.add_hline(y=75, line_dash="dot", line_color="green", 
-                          annotation_text="75% - Excelente", annotation_position="right")
+        fig_line.add_hline(y=50, line_dash="dash", line_color="orange")
+        fig_line.add_hline(y=75, line_dash="dot", line_color="green")
         
-        # Mejorar marcadores y líneas
         fig_line.update_traces(
             line=dict(width=3),
-            marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey'))
+            marker=dict(size=8)
         )
         
         st.plotly_chart(fig_line, use_container_width=True)
         
-        # ANÁLISIS ADICIONAL
-        st.write("#### 📊 Análisis de Tendencias")
-        
-        # Calcular métricas de tendencia
-        tendencias = []
-        for piloto in pilotos_para_grafico:
-            datos_piloto = conv_filtrado[conv_filtrado['pole_driver'] == piloto].sort_values('season')
-            if len(datos_piloto) > 1:
-                primera_temp = datos_piloto.iloc[0]['conversion_pct']
-                ultima_temp = datos_piloto.iloc[-1]['conversion_pct']
-                cambio = ultima_temp - primera_temp
-                tendencia = "📈 Mejorando" if cambio > 5 else "📉 Bajando" if cambio < -5 else "➡️ Estable"
-            else:
-                cambio = 0
-                tendencia = "⚪ Una temporada"
-            
-            tendencias.append({
-                'Piloto': piloto,
-                'Temporadas': len(datos_piloto),
-                'Conversión Promedio': f"{datos_piloto['conversion_pct'].mean():.1f}%",
-                'Cambio': f"{cambio:+.1f}%",
-                'Tendencia': tendencia
-            })
-        
-        # Mostrar tabla de tendencias
-        df_tendencias = pd.DataFrame(tendencias)
-        st.dataframe(df_tendencias, use_container_width=True)
-        
-    else:
-        st.info("👆 Selecciona al menos un piloto para generar el gráfico.")
-    
-    # VISTA COMPACTA PARA TODOS LOS PILOTOS (Heatmap)
+    # VISTA COMPACTA CORREGIDA (sin matplotlib)
     st.write("---")
     st.write("### 🗺️ Vista General - Todos los Pilotos")
-    
+
     if len(todos_pilotos) > 1:
         pivot_conv = conv.pivot_table(
             index='pole_driver',
@@ -408,20 +369,20 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             fill_value=0
         ).round(1)
 
-        # Ordenar pilotos por mejor conversión promedio
+        # Ordenar por promedio
         pivot_conv['promedio'] = pivot_conv.mean(axis=1)
         pivot_conv = pivot_conv.sort_values('promedio', ascending=False)
         pivot_conv = pivot_conv.drop('promedio', axis=1)
 
+        # Tabla simple sin colores (segura)
         st.dataframe(
-            pivot_conv.style.format("{:.1f}%")
-            .background_gradient(cmap='RdYlGn', vmin=0, vmax=100)
-            .set_caption("Porcentaje de Conversión por Temporada (Verde = Mejor)"),
+            pivot_conv.style.format("{:.1f}%"),
             use_container_width=True
         )
 
-else:
-    st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
+    else:
+        st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
+
 st.divider()
 
 # ===================== Pie =====================

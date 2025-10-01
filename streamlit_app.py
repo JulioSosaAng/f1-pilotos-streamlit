@@ -299,112 +299,126 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
 
     conv["season"] = conv["season"].astype("Int64").astype(str)
 
-    # GRÁFICO RADIAL - Comparación entre pilotos
-    if len(conv['pole_driver'].unique()) > 1:
-        # Seleccionar pilotos para comparar
-        todos_pilotos = conv['pole_driver'].unique().tolist()
-        
-        st.write("### 🎯 Comparación Radial - Eficiencia Pole→Victoria")
-        
-        # Selector de pilotos para el radar
-        pilotos_default = todos_pilotos[:4] if len(todos_pilotos) >= 4 else todos_pilotos
-        pilotos_seleccionados = st.multiselect(
-            "Selecciona pilotos para comparar en el gráfico radial:",
+    # GRÁFICO DE LÍNEAS - Tendencias temporales
+    st.write("### 📈 Evolución Temporal - Conversión Pole→Victoria")
+    
+    # Selector de pilotos para mejor visualización
+    todos_pilotos = conv['pole_driver'].unique().tolist()
+    
+    if len(todos_pilotos) > 8:
+        st.info(f"🔍 Hay {len(todos_pilotos)} pilotos. Considera filtrar para mejor visualización.")
+        pilotos_para_grafico = st.multiselect(
+            "Selecciona pilotos para el gráfico de líneas:",
             options=todos_pilotos,
-            default=pilotos_default,
-            key="radar_pilots"
+            default=todos_pilotos[:6],  # Mostrar máximo 6 por defecto
+            key="line_chart_pilots"
+        )
+    else:
+        pilotos_para_grafico = todos_pilotos
+    
+    if pilotos_para_grafico:
+        conv_filtrado = conv[conv['pole_driver'].isin(pilotos_para_grafico)]
+        
+        fig_line = px.line(
+            conv_filtrado.sort_values(["season", "conversion_pct"], ascending=[True, False]),
+            x="season", 
+            y="conversion_pct", 
+            color="pole_driver",
+            markers=True,
+            line_shape="spline",  # Líneas suavizadas
+            category_orders={"season": season_order},
+            color_discrete_sequence=px.colors.qualitative.Bold,
+            labels={
+                "pole_driver": "Piloto", 
+                "conversion_pct": "Porcentaje de Conversión (%)", 
+                "season": "Temporada"
+            },
+            title="Evolución de Conversión Pole → Victoria por Temporada<br><sub>Porcentaje de poles que terminan en victoria</sub>",
+            hover_data={"poles": True, "wins_from_pole": True}  # Datos adicionales en hover
         )
         
-        if pilotos_seleccionados:
-            conv_filtrado = conv[conv['pole_driver'].isin(pilotos_seleccionados)]
-            
-            # Asegurarnos de que tenemos datos para todas las temporadas seleccionadas
-            temporadas_completas = conv_filtrado.groupby('season').filter(lambda x: len(x) == len(pilotos_seleccionados))
-            
-            if len(temporadas_completas) > 0:
-                fig_radar = px.line_polar(
-                    temporadas_completas, 
-                    r='conversion_pct', 
-                    theta='season', 
-                    color='pole_driver',
-                    line_close=True,
-                    color_discrete_sequence=px.colors.qualitative.Bold,
-                    title=f"Comparación Radial - Conversión Pole→Victoria<br><sub>Porcentaje de poles convertidas en victoria por temporada</sub>",
-                    template="plotly_dark"
-                )
-                
-                fig_radar.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True, 
-                            range=[0, 100],
-                            tickvals=[0, 25, 50, 75, 100],
-                            ticktext=["0%", "25%", "50%", "75%", "100%"],
-                            ticks="outside"
-                        ),
-                        angularaxis=dict(direction="clockwise")
-                    ),
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=-0.2,
-                        xanchor="center",
-                        x=0.5
-                    ),
-                    height=600,
-                    margin=dict(t=100, b=100, l=100, r=100)
-                )
-                
-                # Mejorar el estilo de las líneas
-                fig_radar.update_traces(
-                    line=dict(width=3),
-                    marker=dict(size=6)
-                )
-                
-                st.plotly_chart(fig_radar, use_container_width=True)
-                
-                # Estadísticas adicionales
-                st.write("#### 📊 Estadísticas de los Pilotos Seleccionados")
-                stats_pilotos = conv_filtrado.groupby('pole_driver').agg({
-                    'poles': 'sum',
-                    'wins_from_pole': 'sum',
-                    'conversion_pct': 'mean'
-                }).round(1).sort_values('conversion_pct', ascending=False)
-                
-                st.dataframe(stats_pilotos.style.format({
-                    'conversion_pct': '{:.1f}%',
-                    'poles': '{:.0f}',
-                    'wins_from_pole': '{:.0f}'
-                }), use_container_width=True)
-                
-            else:
-                st.warning("⚠️ No hay datos completos para todas las temporadas con los pilotos seleccionados.")
-                st.info("💡 Sugerencia: Selecciona pilotos que hayan competido en las mismas temporadas para una comparación óptima.")
-        else:
-            st.info("👆 Selecciona al menos 2 pilotos para generar el gráfico radial.")
-    
-    else:
-        st.info("Se necesita más de un piloto para generar la comparación radial.")
+        # MEJORAS VISUALES
+        fig_line.update_layout(
+            yaxis_ticksuffix="%", 
+            yaxis_range=[0, 100],
+            xaxis_title="Temporada",
+            yaxis_title="Porcentaje de Conversión (%)",
+            legend_title="Piloto",
+            height=500,
+            hovermode="x unified",  # Muestra todos los valores en el mismo x
+            showlegend=True,
+            plot_bgcolor='rgba(0,0,0,0.05)',
+            paper_bgcolor='rgba(0,0,0,0)',
+        )
         
-    # Mantener el gráfico de barras original como alternativa
-    st.write("---")
-    st.write("### 📊 Vista Tradicional (Barras)")
+        # Líneas de referencia
+        fig_line.add_hline(y=50, line_dash="dash", line_color="orange", 
+                          annotation_text="50% - Referencia", annotation_position="right")
+        fig_line.add_hline(y=75, line_dash="dot", line_color="green", 
+                          annotation_text="75% - Excelente", annotation_position="right")
+        
+        # Mejorar marcadores y líneas
+        fig_line.update_traces(
+            line=dict(width=3),
+            marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey'))
+        )
+        
+        st.plotly_chart(fig_line, use_container_width=True)
+        
+        # ANÁLISIS ADICIONAL
+        st.write("#### 📊 Análisis de Tendencias")
+        
+        # Calcular métricas de tendencia
+        tendencias = []
+        for piloto in pilotos_para_grafico:
+            datos_piloto = conv_filtrado[conv_filtrado['pole_driver'] == piloto].sort_values('season')
+            if len(datos_piloto) > 1:
+                primera_temp = datos_piloto.iloc[0]['conversion_pct']
+                ultima_temp = datos_piloto.iloc[-1]['conversion_pct']
+                cambio = ultima_temp - primera_temp
+                tendencia = "📈 Mejorando" if cambio > 5 else "📉 Bajando" if cambio < -5 else "➡️ Estable"
+            else:
+                cambio = 0
+                tendencia = "⚪ Una temporada"
+            
+            tendencias.append({
+                'Piloto': piloto,
+                'Temporadas': len(datos_piloto),
+                'Conversión Promedio': f"{datos_piloto['conversion_pct'].mean():.1f}%",
+                'Cambio': f"{cambio:+.1f}%",
+                'Tendencia': tendencia
+            })
+        
+        # Mostrar tabla de tendencias
+        df_tendencias = pd.DataFrame(tendencias)
+        st.dataframe(df_tendencias, use_container_width=True)
+        
+    else:
+        st.info("👆 Selecciona al menos un piloto para generar el gráfico.")
     
-    fig_barras = px.bar(
-        conv.sort_values(["season", "conversion_pct"], ascending=[True, False]),
-        x="pole_driver", y="conversion_pct", color="season", barmode="group",
-        category_orders={"season": season_order},
-        color_discrete_sequence=px.colors.qualitative.Set2,
-        labels={"pole_driver": "Piloto", "conversion_pct": "Conversión (%)", "season": "Temporada"},
-        title="Porcentaje de poles que terminan en victoria - Vista por Temporada",
-    )
-    fig_barras.update_layout(
-        yaxis_ticksuffix="%", 
-        yaxis_range=[0, 100],
-        xaxis_tickangle=45
-    )    
-    st.plotly_chart(fig_barras, use_container_width=True)
+    # VISTA COMPACTA PARA TODOS LOS PILOTOS (Heatmap)
+    st.write("---")
+    st.write("### 🗺️ Vista General - Todos los Pilotos")
+    
+    if len(todos_pilotos) > 1:
+        pivot_conv = conv.pivot_table(
+            index='pole_driver',
+            columns='season', 
+            values='conversion_pct',
+            fill_value=0
+        ).round(1)
+
+        # Ordenar pilotos por mejor conversión promedio
+        pivot_conv['promedio'] = pivot_conv.mean(axis=1)
+        pivot_conv = pivot_conv.sort_values('promedio', ascending=False)
+        pivot_conv = pivot_conv.drop('promedio', axis=1)
+
+        st.dataframe(
+            pivot_conv.style.format("{:.1f}%")
+            .background_gradient(cmap='RdYlGn', vmin=0, vmax=100)
+            .set_caption("Porcentaje de Conversión por Temporada (Verde = Mejor)"),
+            use_container_width=True
+        )
 
 else:
     st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")

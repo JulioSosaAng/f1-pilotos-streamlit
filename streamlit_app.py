@@ -222,69 +222,61 @@ else:
 st.divider()
 
 st.subheader("Vueltas rápidas por piloto (Conteo por Circuito)")
+
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
 else:
     if 'gp_name' in df_f.columns and 'date' in df_f.columns:
         
-        # 1. Asegurar formato datetime y agrupar por fecha/carrera
         df_f['date'] = pd.to_datetime(df_f['date'])
         
-        # Agrupamos por fecha (para ordenar), nombre del GP (gp_name), y piloto
         fl = (
             df_f.dropna(subset=["fastest_lap_driver", "date", "gp_name"])
                 .groupby(["date", "gp_name", "fastest_lap_driver"], as_index=False)
                 .size()
                 .rename(columns={"size": "fastest_laps"})
         )
+        
         if piloto_sel:
             fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
-        # 2. Ordenar por fecha para asegurar que el orden del eje X sea correcto
         fl_sorted = fl.sort_values("date", ascending=True)
-
-        # 3. Crear una lista de nombres de GP ordenados para el eje X
         gp_order = fl_sorted["gp_name"].unique().tolist()
 
-        # === Gráfico de BARRAS (Bar Chart) para Vueltas Rápidas ===
+        # === GRÁFICO HORIZONTAL - MUCHO MÁS LEGIBLE ===
         fig_fl = px.bar(
             fl_sorted,
-            x="gp_name",
-            y="fastest_laps", 
-            color="fastest_lap_driver", 
-            barmode="group",
+            y="gp_name",  # Circuitos en eje Y
+            x="fastest_laps",  # Conteo en eje X
+            color="fastest_lap_driver",
+            orientation='h',  # Barras horizontales
             category_orders={"gp_name": gp_order},
             color_discrete_sequence=px.colors.qualitative.Dark24,
             labels={
                 "fastest_lap_driver": "Piloto",
-                "fastest_laps": "VR",
+                "fastest_laps": "Vueltas Rápidas",
                 "gp_name": "Gran Premio"
             },
             title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
         )
         
-        # 4. Ajustar el ancho de las barras y la separación (aún más ancho)
         fig_fl.update_layout(
-            # Reducimos el espacio entre grupos (carreras) para que las barras sean más anchas
-            bargap=0.05, 
-            # Reducimos el espacio dentro del grupo (entre pilotos)
-            bargroupgap=0.01 
-        )
-        
-        # 5. Forzar el eje Y a mostrar solo números enteros (sin 0.5 o 1.5)
-        fig_fl.update_yaxes(tick0=0, dtick=1) # tick0=0 empieza en 0, dtick=1 salta de uno en uno
-        
-        fig_fl.update_layout(
+            height=600,  # Altura fija buena para 24 circuitos
             margin=dict(l=10, r=10, t=60, b=10),
-            xaxis_tickangle=45,
             legend_title_text="Piloto",
-            xaxis_title="Gran Premio",
-            yaxis_title="Vueltas Rápidas (Conteo)"
+            yaxis_title="Gran Premio",
+            xaxis_title="Vueltas Rápidas (Conteo)",
+            showlegend=True,
+            yaxis={'categoryorder': 'array', 'categoryarray': list(reversed(gp_order))}  # Orden inverso para mejor lectura
         )
+        
+        # Forzar el eje X a mostrar solo números enteros
+        fig_fl.update_xaxes(tick0=0, dtick=1)
+        
         st.plotly_chart(fig_fl, use_container_width=True)
         
     else:
-        st.warning("¡Advertencia! Asegúrate de que las columnas 'gp_name' y 'date' estén en tu DataFrame para graficar por Gran Premio.")
+        st.warning("¡Advertencia! Asegúrate de que las columnas 'gp_name' y 'date' estén en tu DataFrame.")
 
 st.divider()
 

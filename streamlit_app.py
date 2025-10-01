@@ -285,130 +285,97 @@ st.divider()
 st.subheader("Conversión Pole → Victoria por piloto")
 
 if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
-        df_tmp = df_f.copy()
-        df_tmp["pole_won"] = (df_tmp["pole_driver"] == df_tmp["winner_driver"]).astype(int)
+    df_tmp = df_f.copy()
+    df_tmp["pole_won"] = (df_tmp["pole_driver"] == df_tmp["winner_driver"]).astype(int)
 
-        conv = (
-            df_tmp.dropna(subset=["pole_driver"])
-                 .groupby(["season", "pole_driver"], as_index=False)
-                 .agg(poles=("pole_driver", "size"), wins_from_pole=("pole_won", "sum"))
-        )
-        conv["conversion_pct"] = (conv["wins_from_pole"] / conv["poles"]).fillna(0.0) * 100.0
+    conv = (
+        df_tmp.dropna(subset=["pole_driver"])
+             .groupby(["season", "pole_driver"], as_index=False)
+             .agg(poles=("pole_driver", "size"), wins_from_pole=("pole_won", "sum"))
+    )
+    conv["conversion_pct"] = (conv["wins_from_pole"] / conv["poles"]).fillna(0.0) * 100.0
 
-        if piloto_sel:
-            conv = conv[conv["pole_driver"].isin(piloto_sel)]
+    if piloto_sel:
+        conv = conv[conv["pole_driver"].isin(piloto_sel)]
 
-        conv["season"] = conv["season"].astype("Int64").astype(str)
+    conv["season"] = conv["season"].astype("Int64").astype(str)
 
-        # HEATMAP - Vista óptima
-        st.write("### 🗺️ Mapa de Eficiencia - Conversión Pole→Victoria")
+    # HEATMAP - Versión simplificada y funcional
+    st.write("### 🗺️ Mapa de Eficiencia - Conversión Pole→Victoria")
     
-        # Preparar datos para heatmap
-        heatmap_data = conv.pivot_table(
-            index='pole_driver',
-            columns='season', 
-            values='conversion_pct',
-            fill_value=0
-        ).round(1)
+    # Preparar datos para heatmap
+    heatmap_data = conv.pivot_table(
+        index='pole_driver',
+        columns='season', 
+        values='conversion_pct',
+        fill_value=0
+    ).round(1)
     
-        # Calcular estadísticas para ordenar
-        heatmap_data['total_poles'] = conv.groupby('pole_driver')['poles'].sum()
-        heatmap_data['avg_conversion'] = heatmap_data.mean(axis=1)
-        heatmap_data['total_wins'] = conv.groupby('pole_driver')['wins_from_pole'].sum()
+    # Ordenar por eficiencia promedio
+    heatmap_data['avg_conversion'] = heatmap_data.mean(axis=1)
+    heatmap_data = heatmap_data.sort_values('avg_conversion', ascending=False)
+    heatmap_display = heatmap_data.drop('avg_conversion', axis=1)
     
-        # Ordenar por eficiencia promedio (mejores primero)
-        heatmap_data = heatmap_data.sort_values('avg_conversion', ascending=False)
+    # Crear heatmap SIMPLIFICADO
+    fig_heat = px.imshow(
+        heatmap_display,
+        title="Porcentaje de Conversión Pole → Victoria",
+        color_continuous_scale='RdYlGn',
+        aspect="auto",
+        labels=dict(x="Temporada", y="Piloto", color="Conversión %"),
+        zmin=0,
+        zmax=100
+    )
     
-        # Separar datos de estadísticas para el heatmap
-        heatmap_display = heatmap_data.drop(['total_poles', 'avg_conversion', 'total_wins'], axis=1)
-    
-        # Crear heatmap
-        fig_heat = px.imshow(
-            heatmap_display,
-            title="Porcentaje de Conversión Pole → Victoria",
-            color_continuous_scale='RdYlGn',
-            aspect="auto",
-            labels=dict(x="Temporada", y="Piloto", color="Conversión %"),
-            zmin=0,
-            zmax=100
-        )
-    
-        # Agregar valores en las celdas
-        for i in range(len(heatmap_display.index)):
-            for j in range(len(heatmap_display.columns)):
-                value = heatmap_display.iloc[i, j]
-                if value > 0:  # Solo mostrar valores > 0
-                    fig_heat.add_annotation(
-                        x=j, y=i,
-                        text=f"{value:.0f}%",
-                        showarrow=False,
-                        font=dict(
-                            color='white' if value > 50 else 'black', 
-                            size=11,
-                            weight='bold'
-                        )
+    # Agregar valores en las celdas (solo si hay datos)
+    for i in range(len(heatmap_display.index)):
+        for j in range(len(heatmap_display.columns)):
+            value = heatmap_display.iloc[i, j]
+            if value > 0:
+                fig_heat.add_annotation(
+                    x=j, y=i,
+                    text=f"{value:.0f}%",
+                    showarrow=False,
+                    font=dict(
+                        color='white' if value > 50 else 'black', 
+                        size=11
                     )
+                )
     
-        # Mejorar diseño
-        fig_heat.update_layout(
-            height=max(400, len(heatmap_display) * 30),  # Altura dinámica
-            xaxis=dict(side="top"),
-            coloraxis_colorbar=dict(
-                title="% Conversión",
-                titleside="right",
-                tickvals=[0, 25, 50, 75, 100],
-                ticktext=["0%", "25%", "50%", "75%", "100%"]
-            )
+    # LAYOUT SIMPLIFICADO - sin altura dinámica problemática
+    fig_heat.update_layout(
+        height=500,  # Altura fija y segura
+        xaxis=dict(side="top"),
+        coloraxis_colorbar=dict(
+            title="% Conversión",
+            titleside="right"
         )
+    )
     
-        # Configurar ejes
-        fig_heat.update_xaxes(tickangle=0)
-        fig_heat.update_yaxes(tickangle=0)
+    st.plotly_chart(fig_heat, use_container_width=True)
     
-        st.plotly_chart(fig_heat, use_container_width=True)
+    # TABLA RESUMEN SIMPLIFICADA
+    st.write("### 📊 Estadísticas Resumen")
     
-        # TABLA RESUMEN DE ESTADÍSTICAS
-        st.write("### 📊 Estadísticas Detalladas")
-    
-        stats_summary = pd.DataFrame({
-            'Piloto': heatmap_data.index,
-            'Poles Totales': heatmap_data['total_poles'].astype(int),
-            'Victorias desde Pole': heatmap_data['total_wins'].astype(int),
-            'Eficiencia Promedio': heatmap_data['avg_conversion'].round(1).astype(str) + '%',
-            'Mejor Temporada': heatmap_display.max(axis=1).round(1).astype(str) + '%',
-            'Peor Temporada': heatmap_display.replace(0, np.nan).min(axis=1).round(1).astype(str) + '%'
+    # Calcular estadísticas básicas
+    stats_data = []
+    for piloto in heatmap_display.index:
+        datos_piloto = heatmap_display.loc[piloto]
+        datos_piloto_sin_cero = datos_piloto[datos_piloto > 0]
+        
+        stats_data.append({
+            'Piloto': piloto,
+            'Poles Totales': conv[conv['pole_driver'] == piloto]['poles'].sum(),
+            'Victorias desde Pole': conv[conv['pole_driver'] == piloto]['wins_from_pole'].sum(),
+            'Eficiencia Promedio': f"{heatmap_data.loc[piloto, 'avg_conversion']:.1f}%",
+            'Mejor Temporada': f"{datos_piloto_sin_cero.max():.1f}%" if len(datos_piloto_sin_cero) > 0 else "N/A"
         })
     
-        st.dataframe(stats_summary, use_container_width=True)
-    
-        # ANÁLISES ADICIONALES
-        col1, col2 = st.columns(2)
-    
-        with col1:
-            st.write("#### 🏆 Top 5 Más Eficientes")
-            top_eficientes = stats_summary.nlargest(5, 'Eficiencia Promedio')
-            for idx, row in top_eficientes.iterrows():
-                st.write(f"**{row['Piloto']}**: {row['Eficiencia Promedio']}")
-    
-        with col2:
-            st.write("#### 📈 Mejora Consistente")
-            # Identificar pilotos que mejoraron temporada tras temporada
-            improvement_data = []
-            for piloto in heatmap_display.index:
-                valores = heatmap_display.loc[piloto].replace(0, np.nan).dropna()
-                if len(valores) > 1:
-                    mejora = valores.iloc[-1] - valores.iloc[0]
-                    improvement_data.append({'Piloto': piloto, 'Mejora': mejora})
-        
-            if improvement_data:
-                df_mejora = pd.DataFrame(improvement_data)
-                top_mejoras = df_mejora.nlargest(3, 'Mejora')
-                for _, row in top_mejoras.iterrows():
-                    st.write(f"**{row['Piloto']}**: {row['Mejora']:+.1f}%")
+    stats_df = pd.DataFrame(stats_data)
+    st.dataframe(stats_df, use_container_width=True)
 
 else:
-        st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
-
+    st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
 st.divider()
 
 # ===================== Pie =====================

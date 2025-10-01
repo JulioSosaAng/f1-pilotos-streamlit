@@ -397,21 +397,21 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
         st.info("👆 Selecciona al menos un piloto para generar el gráfico.")
     
     # VISTA COMPACTA PARA TODOS LOS PILOTOS (Heatmap)
-    st.write("---")
-    st.write("### 🗺️ Vista General - Todos los Pilotos")
+        st.write("---")
+        st.write("### 🗺️ Vista General - Todos los Pilotos")
     
-    if len(todos_pilotos) > 1:
-        pivot_conv = conv.pivot_table(
-            index='pole_driver',
-            columns='season', 
-            values='conversion_pct',
-            fill_value=0
-        ).round(1)
+        if len(todos_pilotos) > 1:
+            pivot_conv = conv.pivot_table(
+                index='pole_driver',
+                columns='season', 
+                values='conversion_pct',
+                fill_value=0
+            ).round(1)
 
         # Ordenar pilotos por mejor conversión promedio
-        pivot_conv['promedio'] = pivot_conv.mean(axis=1)
-        pivot_conv = pivot_conv.sort_values('promedio', ascending=False)
-        pivot_conv = pivot_conv.drop('promedio', axis=1)
+            pivot_conv['promedio'] = pivot_conv.mean(axis=1)
+            pivot_conv = pivot_conv.sort_values('promedio', ascending=False)
+            pivot_conv = pivot_conv.drop('promedio', axis=1)
 
         st.dataframe(
             pivot_conv.style.format("{:.1f}%")
@@ -420,7 +420,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
             use_container_width=True
         )
 
-    else:
+else:
         st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
 
 st.divider()

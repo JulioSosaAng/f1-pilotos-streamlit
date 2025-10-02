@@ -356,30 +356,47 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     # --- TABLA RESUMEN (Mantenida) ---
     
     st.write("### 📜 Estadísticas Resumen Detallado")
-    
-    # Aquí puedes opcionalmente incluir el Heatmap_display como un detalle para
-    # mostrar la información por temporada que se pierde en el gráfico de barras.
-    
-    heatmap_display = heatmap_data.drop('avg_conversion', axis=1) # Limpiar el promedio
-    heatmap_display = heatmap_display.sort_values('avg_conversion', ascending=False) # Ordenar igual que el gráfico
+
+    # 1. Creamos heatmap_display A PARTIR de heatmap_data (que contiene 'avg_conversion')
+    # 2. Ordenamos por el promedio (en heatmap_data)
+    # 3. Y luego eliminamos 'avg_conversion' para la vista de la tabla.
+
+    # Ordenamos el DataFrame principal (heatmap_data) por el promedio.
+    # Esto asegura que el bucle `for piloto in heatmap_data.index:` itere en el orden correcto.
+    heatmap_data = heatmap_data.sort_values('avg_conversion', ascending=False) 
+
+    # Creamos la vista para la tabla si fuera necesario (aunque no se usa directamente después)
+    # heatmap_display = heatmap_data.drop('avg_conversion', axis=1) # Se puede omitir
 
     # Calcular estadísticas básicas
     stats_data = []
-    for piloto in heatmap_display.index:
-        datos_piloto = heatmap_display.loc[piloto]
+    # Iteramos sobre los índices de heatmap_data, que ya está ordenado
+    for piloto in heatmap_data.index: 
+        # Usamos loc para obtener los datos específicos del piloto
+        datos_piloto = heatmap_data.loc[piloto] 
+    
         # Obtenemos los datos de la conversión consolidada para los totales
         datos_totales = conv[conv['pole_driver'] == piloto] 
-        datos_piloto_sin_cero = datos_piloto[datos_piloto > 0]
-        
+    
+        # Excluimos el promedio y los ceros para encontrar la mejor temporada
+        datos_piloto_sin_promedio = datos_piloto.drop('avg_conversion', errors='ignore')
+        datos_piloto_sin_cero = datos_piloto_sin_promedio[datos_piloto_sin_promedio > 0]
+    
         stats_data.append({
             'Piloto': piloto,
             'Poles Totales': datos_totales['poles'].sum(),
             'Victorias desde Pole': datos_totales['wins_from_pole'].sum(),
-            'Eficiencia Promedio': f"{heatmap_data.loc[piloto, 'avg_conversion']:.1f}%",
+            'Eficiencia Promedio': f"{datos_piloto['avg_conversion']:.1f}%", # Usamos el promedio ya calculado
             'Mejor Temporada': f"{datos_piloto_sin_cero.max():.1f}%" if len(datos_piloto_sin_cero) > 0 else "N/A"
         })
-    
+
     stats_df = pd.DataFrame(stats_data)
+    # Opcionalmente, puedes ordenar el DataFrame final:
+    # stats_df = stats_df.sort_values(by='Eficiencia Promedio', ascending=False) # Si el orden de iteración no fue suficiente
+
+    # Aplicar estilos si quieres:
+    # stats_df = stats_df.style.background_gradient(subset=['Poles Totales', 'Victorias desde Pole'], cmap='Blues')
+
     st.dataframe(stats_df, use_container_width=True)
 
 else:

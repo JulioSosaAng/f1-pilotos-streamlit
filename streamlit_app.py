@@ -347,8 +347,7 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
         height=500,  # Altura fija y segura
         xaxis=dict(side="top"),
         coloraxis_colorbar=dict(
-            title="% Conversión",
-            titleside="right"
+            title="% Conversión"
         )
     )
     

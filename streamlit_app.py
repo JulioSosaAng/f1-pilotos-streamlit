@@ -290,8 +290,8 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
 
     conv = (
         df_tmp.dropna(subset=["pole_driver"])
-             .groupby(["season", "pole_driver"], as_index=False)
-             .agg(poles=("pole_driver", "size"), wins_from_pole=("pole_won", "sum"))
+              .groupby(["season", "pole_driver"], as_index=False)
+              .agg(poles=("pole_driver", "size"), wins_from_pole=("pole_won", "sum"))
     )
     conv["conversion_pct"] = (conv["wins_from_pole"] / conv["poles"]).fillna(0.0) * 100.0
 
@@ -300,10 +300,9 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
 
     conv["season"] = conv["season"].astype("Int64").astype(str)
 
-    # HEATMAP - Versión simplificada y funcional
-    st.write("### 🗺️ Mapa de Eficiencia - Conversión Pole→Victoria")
+    # --- PREPARACIÓN DE DATOS (Mantenida) ---
     
-    # Preparar datos para heatmap
+    # Preparar datos para heatmap (lo usamos para el promedio)
     heatmap_data = conv.pivot_table(
         index='pole_driver',
         columns='season', 
@@ -313,59 +312,69 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     
     # Ordenar por eficiencia promedio
     heatmap_data['avg_conversion'] = heatmap_data.mean(axis=1)
-    heatmap_data = heatmap_data.sort_values('avg_conversion', ascending=False)
-    heatmap_display = heatmap_data.drop('avg_conversion', axis=1)
     
-    # Crear heatmap SIMPLIFICADO
-    fig_heat = px.imshow(
-        heatmap_display,
-        title="Porcentaje de Conversión Pole → Victoria",
-        color_continuous_scale='RdYlGn',
-        aspect="auto",
-        labels=dict(x="Temporada", y="Piloto", color="Conversión %"),
-        zmin=0,
-        zmax=100
+    # Creamos un DF simple para el gráfico de barras
+    bar_data = heatmap_data[['avg_conversion']].reset_index() 
+    # Ordenar ascendente para barras horizontales (mejor de abajo hacia arriba)
+    bar_data = bar_data.sort_values('avg_conversion', ascending=True) 
+
+    
+    # --- GRÁFICO DE BARRAS (Nuevo) ---
+    
+    st.write("### 📊 Eficiencia Promedio - Conversión Pole → Victoria")
+
+    # Crear gráfico de barras horizontales con el promedio
+    fig_bar = px.bar(
+        bar_data,
+        x='avg_conversion',
+        y='pole_driver',
+        orientation='h',  # Barras horizontales
+        title='Promedio de Porcentaje de Conversión Pole → Victoria por Piloto',
+        color='avg_conversion',
+        color_continuous_scale='RdYlGn', # Mismo esquema de color para familiaridad
+        labels={'avg_conversion': 'Conversión Promedio (%)', 'pole_driver': 'Piloto'},
     )
-    
-    # Agregar valores en las celdas (solo si hay datos)
-    for i in range(len(heatmap_display.index)):
-        for j in range(len(heatmap_display.columns)):
-            value = heatmap_display.iloc[i, j]
-            if value > 0:
-                fig_heat.add_annotation(
-                    x=j, y=i,
-                    text=f"{value:.0f}%",
-                    showarrow=False,
-                    font=dict(
-                        color='white' if value > 50 else 'black', 
-                        size=11
-                    )
-                )
-    
-    # LAYOUT SIMPLIFICADO - sin altura dinámica problemática
-    fig_heat.update_layout(
-        height=500,  # Altura fija y segura
-        xaxis=dict(side="top"),
-        coloraxis_colorbar=dict(
-            title="% Conversión"
-        )
+
+    # Ajustes de layout y texto
+    fig_bar.update_traces(
+        marker_line_color='black',
+        marker_line_width=0.5,
+        texttemplate='%{x:.1f}%', # Mostrar el porcentaje en la barra
+        textposition='outside'
     )
+
+    fig_bar.update_layout(
+        height=max(500, 30 * len(bar_data)), # Altura dinámica para evitar el "apretujamiento"
+        xaxis_title="Conversión Promedio (%)",
+        yaxis_title="Piloto",
+        coloraxis_showscale=False, # Ocultar la barra de color
+        margin=dict(l=10, r=100, t=50, b=10) # Mayor margen para el texto 'outside'
+    )
+
+    st.plotly_chart(fig_bar, use_container_width=True)
     
-    st.plotly_chart(fig_heat, use_container_width=True)
+    # --- TABLA RESUMEN (Mantenida) ---
     
-    # TABLA RESUMEN SIMPLIFICADA
-    st.write("### 📊 Estadísticas Resumen")
+    st.write("### 📜 Estadísticas Resumen Detallado")
     
+    # Aquí puedes opcionalmente incluir el Heatmap_display como un detalle para
+    # mostrar la información por temporada que se pierde en el gráfico de barras.
+    
+    heatmap_display = heatmap_data.drop('avg_conversion', axis=1) # Limpiar el promedio
+    heatmap_display = heatmap_display.sort_values('avg_conversion', ascending=False) # Ordenar igual que el gráfico
+
     # Calcular estadísticas básicas
     stats_data = []
     for piloto in heatmap_display.index:
         datos_piloto = heatmap_display.loc[piloto]
+        # Obtenemos los datos de la conversión consolidada para los totales
+        datos_totales = conv[conv['pole_driver'] == piloto] 
         datos_piloto_sin_cero = datos_piloto[datos_piloto > 0]
         
         stats_data.append({
             'Piloto': piloto,
-            'Poles Totales': conv[conv['pole_driver'] == piloto]['poles'].sum(),
-            'Victorias desde Pole': conv[conv['pole_driver'] == piloto]['wins_from_pole'].sum(),
+            'Poles Totales': datos_totales['poles'].sum(),
+            'Victorias desde Pole': datos_totales['wins_from_pole'].sum(),
             'Eficiencia Promedio': f"{heatmap_data.loc[piloto, 'avg_conversion']:.1f}%",
             'Mejor Temporada': f"{datos_piloto_sin_cero.max():.1f}%" if len(datos_piloto_sin_cero) > 0 else "N/A"
         })

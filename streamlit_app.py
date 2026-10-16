@@ -86,7 +86,7 @@ st.sidebar.header("⚙️ Filtros (Pilotos)")
 csv_path = st.sidebar.text_input(
     "Ruta del CSV",
     value=str(DATA_DEFAULT),
-    help="Ruta al archivo f1_2024_2025_filled.csv (podés dejar la predeterminada).",
+    help="Ruta al archivo f1_2024_2025_2026_filled.csv (podés dejar la predeterminada).",
 )
 
 # Cargar
@@ -103,7 +103,7 @@ temporadas = st.sidebar.multiselect("Temporadas", options=temp_disponibles, defa
 pilotos = extract_unique_drivers(df)
 piloto_sel = st.sidebar.multiselect("Pilotos (pole/podio/VR)", options=pilotos, default=[])
 
-st.sidebar.caption("Foco: comparar pilotos entre 2024 y 2025 (hasta Monza).")
+st.sidebar.caption("Foco: comparar pilotos entre 2024 y 2026.")
 
 # ===================== Filtrado =====================
 df_f = df.copy()
@@ -121,9 +121,9 @@ if piloto_sel:
 season_order = [str(s) for s in sorted(df_f["season"].dropna().unique())]
 
 # ===================== Encabezado =====================
-st.title("F1 • 2024–2025 (hasta Monza) – Enfoque: Pilotos")
+st.title("F1 • 2024–2026 – Enfoque: Pilotos")
 st.write(
-    "Objetivo: **¿quién domina y quién mejoró de 2024 a 2025 (hasta Monza)?** "
+    "Objetivo: **¿quién domina y quién mejoró de 2024 a 2026?** "
     "Métricas: victorias, poles, vueltas rápidas y conversión Pole→Victoria."
 )
 

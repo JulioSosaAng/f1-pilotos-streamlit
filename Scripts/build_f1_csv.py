@@ -33,9 +33,8 @@ from typing import Dict, Any, List, Tuple, Optional
 import requests
 import pandas as pd
 
-ERGAST_BASE = "https://ergast.com/api/f1"
-# Fallback (sucesor compatible): https://github.com/jolpica/jolpica-f1
 JOLPICA_BASE = "https://api.jolpi.ca/ergast/f1"
+ERGAST_BASE = "https://ergast.com/api/f1"
 
 HEADERS = {"User-Agent": "F1 Data Builder (github.com/your-handle)"}
 
@@ -50,40 +49,41 @@ def _get_json(url: str) -> Optional[Dict[str, Any]]:
     return None
 
 def ergast_json(path: str) -> Optional[Dict[str, Any]]:
-    # Intenta Ergast, luego Jolpica (mismo path)
-    for base in (ERGAST_BASE, JOLPICA_BASE):
+    # Sistema de reintentos robusto para lidiar con la inestabilidad de la API pública
+    for base in (JOLPICA_BASE, ERGAST_BASE):
         url = f"{base}{path}.json"
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=25)
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            continue
+        for intento in range(1, 4):  # Hasta 3 intentos por URL
+            try:
+                time.sleep(0.5 * intento)  # Pausa progresiva
+                r = requests.get(url, headers=HEADERS, timeout=30)
+                if r.status_code == 200:
+                    return r.json()
+            except Exception:
+                pass
     return None
 
 def season_schedule(season: int) -> List[Dict[str, Any]]:
-    data = ergast_json(f"/{season}")
-    races = data.get("MRData", {}).get("RaceTable", {}).get("Races", []) if data else []
-    return races
+    # Intentamos obtener el calendario asegurando reintentos
+    for _ in range(3):
+        data = ergast_json(f"/{season}")
+        if data:
+            races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+            if races:
+                return races
+        time.sleep(2)
+    return []
 
-def get_rounds_up_to_monza(season: int) -> List[int]:
+def get_latest_available_rounds(season: int) -> List[int]:
     races = season_schedule(season)
     if not races:
         return []
     rounds = []
-    monza_round = None
     for r in races:
         try:
             rnd = int(r.get("round"))
+            rounds.append(rnd)
         except Exception:
             continue
-        rounds.append(rnd)
-        # Detectar Monza por nombre de circuito
-        circuit_name = (r.get("Circuit", {}) or {}).get("circuitName", "").lower()
-        if "monza" in circuit_name:
-            monza_round = rnd
-    if season == 2025 and monza_round is not None:
-        return [rnd for rnd in rounds if rnd <= monza_round]
     return rounds
 
 def fetch_qualifying(season: int, rnd: int) -> Tuple[str, str, str]:
@@ -218,17 +218,55 @@ def fill_row_from_api(season: int, rnd: int) -> Dict[str, Any]:
 
 def build_dataframe() -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
+    seasons_to_fetch = [2024, 2025, 2026]
 
-    # 2024: todas las rondas disponibles en calendario
-    for rnd in get_rounds_up_to_monza(2024):  # en 2024 devolvemos todas
-        rows.append(fill_row_from_api(2024, rnd))
+    for season in seasons_to_fetch:
+        print(f"\n--- Procesando temporada {season} ---")
+        races = season_schedule(season)
+        if not races:
+            print(f"[Advertencia] No se pudo obtener el calendario para {season}")
+            continue
+            
+        print(f"Total de rondas encontradas en {season}: {len(races)}")
+        
+        for r_info in races:
+            try:
+                rnd = int(r_info.get("round"))
+            except Exception:
+                continue
+                
+            gp_name = r_info.get("raceName", "Desconocido")
+            date_str = r_info.get("date", "")
+            
+            # Validación estricta por fecha para evitar procesar carreras futuras en 2026
+            if season == 2026 and date_str > pd.Timestamp.today().strftime('%Y-%m-%d'):
+                print(f"  -> Ronda {rnd} ({gp_name}): Omitida por ser futura ({date_str})")
+                continue
 
-    # 2025: solo hasta Monza inclusive
-    for rnd in get_rounds_up_to_monza(2025):
-        rows.append(fill_row_from_api(2025, rnd))
+            # Mecanismo de reintento (hasta 3 intentos si la API falla o responde con retraso)
+            max_intentos = 3
+            row = None
+            
+            for intento in range(1, max_intentos + 1):
+                if intento == 1:
+                    print(f"  -> Descargando datos ronda {rnd}: {gp_name}...")
+                else:
+                    print(f"     -> Reintentando ronda {rnd} (Intento {intento}/{max_intentos})...")
+                
+                row = fill_row_from_api(season, rnd)
+                
+                # Verificamos si trajo resultados válidos
+                if row and (row.get("winner_driver") or season < 2026):
+                    break
+                
+                # Pausa antes de volver a intentar
+                time.sleep(1.5 * intento)
 
-    # limpiar vacíos
-    rows = [r for r in rows if r]
+            if row and (row.get("winner_driver") or season < 2026):
+                rows.append(row)
+            else:
+                print(f"     [Aviso] La ronda {rnd} no devolvió resultados tras {max_intentos} intentos.")
+
     cols = [
         "season","round","gp_name","circuit","country","date",
         "laps_scheduled","circuit_length_km","race_distance_km","sprint_weekend",
@@ -240,7 +278,8 @@ def build_dataframe() -> pd.DataFrame:
         "attendance","notes"
     ]
     df = pd.DataFrame(rows, columns=cols)
-    df = df.sort_values(["season","round"]).reset_index(drop=True)
+    if not df.empty:
+        df = df.sort_values(["season","round"]).reset_index(drop=True)
     return df
 
 def merge_with_template(df_new: pd.DataFrame, template_path: Optional[str]) -> pd.DataFrame:
@@ -267,7 +306,7 @@ def merge_with_template(df_new: pd.DataFrame, template_path: Optional[str]) -> p
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="f1_2024_2025_filled.csv")
+    ap.add_argument("--out", default="f1_2024_2025_2026_filled.csv")
     ap.add_argument("--template", default=None, help="Ruta a template CSV opcional para merge")
     args = ap.parse_args()
 

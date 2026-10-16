@@ -11,14 +11,14 @@ import re
 
 # ===================== Configuración de página =====================
 st.set_page_config(
-    page_title="F1 • 2024–2025 (hasta Monza) – Pilotos",
+    page_title="F1 • Análisis de Pilotos (2024–2026)",
     layout="wide",
     page_icon="🏁",
 )
 
 # ===================== Utilidades / Carga de datos =====================
 PROJECT_ROOT = Path(__file__).parent
-DATA_DEFAULT = PROJECT_ROOT / "Data" / "f1_2024_2025_filled.csv"
+DATA_DEFAULT = PROJECT_ROOT / "Data" / "f1_2024_2025_2026_filled.csv"
 
 @st.cache_data(show_spinner=True)
 def load_data(csv_path: str) -> pd.DataFrame:

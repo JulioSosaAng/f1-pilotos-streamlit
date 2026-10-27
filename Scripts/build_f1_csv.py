@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import requests
 import pandas as pd
@@ -37,6 +38,13 @@ JOLPICA_BASE = "https://api.jolpi.ca/ergast/f1"
 ERGAST_BASE = "https://ergast.com/api/f1"
 
 HEADERS = {"User-Agent": "F1 Data Builder (github.com/your-handle)"}
+
+def _build_url(base: str, path: str) -> str:
+    """Construye la URL manejando path con query string (ej: pitstops?limit=2000)."""
+    if "?" in path:
+        path_part, query = path.split("?", 1)
+        return f"{base}{path_part}.json?{query}"
+    return f"{base}{path}.json"
 
 def _get_json(url: str) -> Optional[Dict[str, Any]]:
     for base in (None,):
@@ -51,7 +59,7 @@ def _get_json(url: str) -> Optional[Dict[str, Any]]:
 def ergast_json(path: str) -> Optional[Dict[str, Any]]:
     # Sistema de reintentos robusto para lidiar con la inestabilidad de la API pública
     for base in (JOLPICA_BASE, ERGAST_BASE):
-        url = f"{base}{path}.json"
+        url = _build_url(base, path)
         for intento in range(1, 4):  # Hasta 3 intentos por URL
             try:
                 time.sleep(0.5 * intento)  # Pausa progresiva
@@ -305,23 +313,40 @@ def merge_with_template(df_new: pd.DataFrame, template_path: Optional[str]) -> p
     return merged
 
 def main():
+    from metrics import Metrics      
+    M = Metrics()                          
+    M.patch()                              
+    M.start()                              
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="f1_2024_2025_2026_filled.csv")
     ap.add_argument("--template", default=None, help="Ruta a template CSV opcional para merge")
     args = ap.parse_args()
+    metrics_out = f"metrics/{Path(args.out).stem}.md"
 
     print("Descargando y construyendo dataframe...")
-    df = build_dataframe()
+    with M.phase("build_dataframe"):
+        df = build_dataframe()
+        
     if df.empty:
         print("No se obtuvieron datos. ¿API caída? Probá luego o cambiá de red.")
+        M.stop()
+        M.set_dataframe_info(df)                           
+        M.write_markdown(metrics_out)
         sys.exit(1)
 
     if args.template:
         print(f"Haciendo merge con template: {args.template}")
-        df = merge_with_template(df, args.template)
+        with M.phase("merge_template"):
+            df = merge_with_template(df, args.template)
 
     df.to_csv(args.out, index=False, encoding="utf-8")
     print(f"Listo: {args.out} con {len(df)} filas.")
+
+    M.stop()                               
+    M.set_dataframe_info(df)               
+    M.write_markdown(metrics_out)  
+    print(f"Métricas guardadas en: {metrics_out}")
 
 if __name__ == "__main__":
     main()

@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import random
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
@@ -47,18 +48,47 @@ def _build_url(base: str, path: str) -> str:
         return f"{base}{path_part}.json?{query}"
     return f"{base}{path}.json"
 
-def ergast_json(path: str) -> Optional[Dict[str, Any]]:
-    # Sistema de reintentos robusto para lidiar con la inestabilidad de la API pública
+def ergast_json(path: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
     for base in (JOLPICA_BASE, ERGAST_BASE):
         url = _build_url(base, path)
-        for intento in range(1, 4):  # Hasta 3 intentos por URL
+        
+        for intento in range(max_retries):
             try:
-                time.sleep(0.5 * intento)  # Pausa progresiva
+                # Ya NO hacemos sleep antes del request
                 r = requests.get(url, headers=HEADERS, timeout=30)
-                if r.status_code == 200:
-                    return r.json()
-            except Exception:
-                pass
+            except requests.RequestException as e:
+                print(f"   [Red] Error en {url}: {e}")
+                time.sleep((2 ** intento) + random.uniform(0, 0.5))
+                continue
+
+            # 1. Éxito
+            if r.status_code == 200:
+                return r.json()
+            
+            # 2. No existe (404) -> No reintentar
+            if r.status_code == 404:
+                return None
+            
+            # 3. Rate Limit (429) -> Respetar el Retry-After
+            if r.status_code == 429:
+                retry_after = r.headers.get("Retry-After")
+                # Si la API nos dice cuánto esperar, le hacemos caso. Si no, backoff exponencial.
+                wait_time = int(retry_after) if retry_after and retry_after.isdigit() else (2 ** intento)
+                print(f"   [429] Límite alcanzado. Esperando {wait_time}s...")
+                time.sleep(wait_time + random.uniform(0, 0.5))
+                continue
+            
+            # 4. Errores del servidor (500+) -> Backoff exponencial
+            if 500 <= r.status_code < 600:
+                wait_time = (2 ** intento) + random.uniform(0, 0.5)
+                print(f"   [{r.status_code}] Error servidor. Esperando {wait_time:.1f}s...")
+                time.sleep(wait_time)
+                continue
+            
+            # 5. Otros errores (400, 401, 403) -> Abortar
+            print(f"   [{r.status_code}] Error de cliente en {url}. Abortando.")
+            return None
+            
     return None
 
 @lru_cache(maxsize=16)

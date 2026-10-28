@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import requests
@@ -46,16 +47,6 @@ def _build_url(base: str, path: str) -> str:
         return f"{base}{path_part}.json?{query}"
     return f"{base}{path}.json"
 
-def _get_json(url: str) -> Optional[Dict[str, Any]]:
-    for base in (None,):
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=20)
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            pass
-    return None
-
 def ergast_json(path: str) -> Optional[Dict[str, Any]]:
     # Sistema de reintentos robusto para lidiar con la inestabilidad de la API pública
     for base in (JOLPICA_BASE, ERGAST_BASE):
@@ -70,16 +61,17 @@ def ergast_json(path: str) -> Optional[Dict[str, Any]]:
                 pass
     return None
 
-def season_schedule(season: int) -> List[Dict[str, Any]]:
-    # Intentamos obtener el calendario asegurando reintentos
-    for _ in range(3):
-        data = ergast_json(f"/{season}")
-        if data:
-            races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])
-            if races:
-                return races
-        time.sleep(2)
-    return []
+@lru_cache(maxsize=16)
+
+def season_schedule(season: int) -> Tuple[Dict[str, Any], ...]:
+    # Nota: devolvemos una tupla en lugar de lista para asegurar que sea hashable, 
+    # aunque lru_cache solo necesita que los argumentos lo sean. Pero es más seguro así.
+    data = ergast_json(f"/{season}")
+    if data:
+        races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+        if races:
+            return tuple(races)
+    return tuple()
 
 def get_latest_available_rounds(season: int) -> List[int]:
     races = season_schedule(season)
@@ -176,11 +168,9 @@ def has_sprint(season: int, rnd: int) -> str:
     races = data.get("MRData", {}).get("RaceTable", {}).get("Races", []) if data else []
     return "sí" if races else "no"
 
-def fill_row_from_api(season: int, rnd: int) -> Dict[str, Any]:
+def fill_row_from_api(season: int, rnd: int, race_info: Dict[str, Any]) -> Dict[str, Any]:
     row: Dict[str, Any] = {}
-    # schedule/base info
-    sched = season_schedule(season)
-    race_info = next((r for r in sched if int(r.get("round", -1)) == rnd), None)
+    # schedule/base info (ahora viene por parámetro)
     if not race_info:
         return {}
     row["season"] = season
@@ -261,7 +251,7 @@ def build_dataframe() -> pd.DataFrame:
                 else:
                     print(f"     -> Reintentando ronda {rnd} (Intento {intento}/{max_intentos})...")
                 
-                row = fill_row_from_api(season, rnd)
+                row = fill_row_from_api(season, rnd, r_info)
                 
                 # Verificamos si trajo resultados válidos
                 if row and (row.get("winner_driver") or season < 2026):

@@ -32,7 +32,7 @@ def load_data(csv_path: str) -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
     # A numérico lo que corresponde
-    for c in ("season", "round", "dnfs"):
+    for c in ("season", "round", "dnfs", "dsqs", "ncs"): 
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
     if "avg_pitstops_per_driver" in df.columns:
@@ -403,6 +403,57 @@ else:
     st.info("Faltan columnas 'pole_driver' o 'winner_driver' para este análisis.")
 st.divider()
 
+# ===================== 4) Análisis de Confiabilidad =====================
+st.divider()
+st.subheader("🛠️ Análisis de Confiabilidad por Temporada")
+st.write("Desglose de incidentes en pista: Abandonos reales (DNFs), Descalificaciones (DSQs) y No Clasificados (NCs).")
+
+if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
+    # Agrupamos por temporada sumando los incidentes
+    status_df = df_f.groupby("season")[["dnfs", "dsqs", "ncs"]].sum().reset_index()
+    
+    # Transformamos el formato "ancho" a "largo" para que Plotly lo entienda fácil
+    status_melted = status_df.melt(
+        id_vars="season", 
+        var_name="Tipo", 
+        value_name="Cantidad"
+    )
+    
+    # Renombramos para que quede lindo en el gráfico
+    status_melted["Tipo"] = status_melted["Tipo"].map({
+        "dnfs": "Abandonos (DNFs)",
+        "dsqs": "Descalificados (DSQs)",
+        "ncs": "No Clasificados (NCs)"
+    })
+    
+    status_melted["season"] = status_melted["season"].astype("Int64").astype(str)
+
+    # Gráfico de barras apiladas
+    fig_status = px.bar(
+        status_melted,
+        x="season",
+        y="Cantidad",
+        color="Tipo",
+        title="Total de Incidentes por Temporada",
+        barmode="stack",
+        category_orders={"season": season_order},
+        color_discrete_map={
+            "Abandonos (DNFs)": "#EF553B",     # Rojo suave
+            "Descalificados (DSQs)": "#636EFA", # Azul
+            "No Clasificados (NCs)": "#FFA15A"  # Naranja
+        },
+        labels={"season": "Temporada", "Cantidad": "Cantidad total", "Tipo": "Tipo de Incidente"}
+    )
+    
+    fig_status.update_layout(
+        margin=dict(l=10, r=10, t=60, b=10),
+        legend_title_text="Estado"
+    )
+    
+    st.plotly_chart(fig_status, use_container_width=True)
+else:
+    st.info("⚠️ Las columnas de confiabilidad (dnfs, dsqs, ncs) no están presentes en el dataset actual. Actualizá el CSV con el Fix 5.")
+    
 # ===================== Pie =====================
 st.caption("Fuente: Ergast (ingesta propia). Gráficos: Plotly Express • App: Streamlit.")
 

@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# Importar lógica desacoplada
+# Importar lógica desacoplada (Fix 1)
 from data_loader import (
     DATA_DEFAULT, 
     load_data, 
@@ -20,23 +20,40 @@ st.set_page_config(
     page_icon="🏁",
 )
 
-# ===================== Sidebar (Foco Pilotos) =====================
+# ===================== Sistema de Diseño de Color Unificado =====================
+# Inspirado en Material Design & IBM Design for Data
+COLOR_PRIMARY = "#1A73E8"       # Azul corporativo (Métrica principal / Foco)
+COLOR_SECONDARY = "#4285F4"     # Azul secundario
+COLOR_NEUTRAL = "#5F6368"       # Gris neutro para elementos secundarios/DSQ
+COLOR_DANGER = "#D93025"        # Rojo para incidentes críticos (DNFs)
+COLOR_WARNING = "#F9AB00"       # Amarillo/Naranja para advertencias (NCs)
+
+# Paletas reutilizables
+PALETTE_DISCRETE = ["#1A73E8", "#12B5CB", "#7C4DFF", "#FF6D00", "#46BDC6", "#E52592", "#00C853"]
+PALETTE_SEQUENTIAL = "Blues"
+
+# Layout limpio reutilizable para Plotly (Tufte / Storytelling with Data)
+PLOT_LAYOUT_CLEAN = dict(
+    plot_bgcolor="rgba(0,0,0,0)",
+    paper_bgcolor="rgba(0,0,0,0)",
+    margin=dict(l=10, r=20, t=50, b=10),
+)
+
+# ===================== Sidebar =====================
 st.sidebar.header("⚙️ Filtros (Pilotos)")
 
 csv_path = st.sidebar.text_input(
     "Ruta del CSV",
     value=str(DATA_DEFAULT),
-    help="Ruta al archivo f1_2024_2025_2026_filled.csv (podés dejar la predeterminada).",
+    help="Ruta al archivo f1_2024_2025_2026_filled.csv.",
 )
 
-# Cargar Datos delegando al módulo utils
 try:
     df = load_data(csv_path)
 except Exception as e:
     st.error(f"❌ No se pudo cargar el CSV.\n\n**Detalle:** {e}")
     st.stop()
 
-# Filtros
 temp_disponibles = unique_nonempty(df["season"]) if "season" in df.columns else []
 temporadas = st.sidebar.multiselect("Temporadas", options=temp_disponibles, default=temp_disponibles)
 
@@ -60,7 +77,7 @@ if piloto_sel:
 
 season_order = [str(s) for s in sorted(df_f["season"].dropna().unique())]
 
-# ===================== Encabezado UI =====================
+# ===================== Encabezado =====================
 st.title("F1 • 2024–2026 – Enfoque: Pilotos")
 st.write(
     "Objetivo: **¿quién domina y quién mejoró de 2024 a 2026?** "
@@ -94,6 +111,8 @@ with k4:
     else:
         st.metric("Más vueltas rápidas", "—")
 
+st.divider()
+
 # ===================== 1) Victorias por piloto =====================
 st.subheader("Victorias por piloto (agrupado por temporada)")
 if "winner_driver" not in df_f.columns or len(df_f) == 0:
@@ -114,16 +133,20 @@ else:
         win_drv.sort_values(["season", "wins"], ascending=[True, False]),
         x="winner_driver", y="wins", color="season", barmode="group",
         category_orders={"season": season_order},
-        color_discrete_sequence=px.colors.qualitative.Set2,
+        color_discrete_sequence=PALETTE_DISCRETE,  # Usando paleta unificada
         labels={"winner_driver": "Piloto", "wins": "Victorias", "season": "Temporada"},
         title="Conteo de victorias por piloto",
-        )
-    fig_win_drv.update_layout(margin=dict(l=10, r=10, t=60, b=10), xaxis_tickangle=45, legend_title_text="Temporada")
+    )
+    fig_win_drv.update_layout(
+        **PLOT_LAYOUT_CLEAN,
+        xaxis_tickangle=0,
+        legend_title_text="Temporada"
+    )
     st.plotly_chart(fig_win_drv, use_container_width=True)
 
 st.divider()
 
-# ===================== 2) Poles (Versión Refactorizada en el turno anterior) =====================
+# ===================== 2) Poles por piloto (Total) =====================
 st.subheader("Poles por piloto (Total)")
 if "pole_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'pole_driver' o no hay filas tras el filtro.")
@@ -139,26 +162,25 @@ else:
     if piloto_sel:
         poles_total = poles_total[poles_total["pole_driver"].isin(piloto_sel)]
 
-    COLOR_PRIMARY = "#1A73E8" 
-
     fig_poles = px.bar(
         poles_total, x="poles", y="pole_driver", orientation='h',
-        title="Total de Poles por Piloto", color_discrete_sequence=[COLOR_PRIMARY],
-        text="poles", labels={"pole_driver": "Piloto", "poles": "Cantidad de Poles"}
+        title="Total de Poles por Piloto",
+        color_discrete_sequence=[COLOR_PRIMARY],  # Color unificado
+        text="poles",
+        labels={"pole_driver": "Piloto", "poles": "Cantidad de Poles"}
     )
-    
     fig_poles.update_traces(textposition='outside', marker_line_width=0)
     fig_poles.update_layout(
-        margin=dict(l=10, r=40, t=50, b=10),
-        xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', showline=False, zeroline=False, title="Cantidad de Poles"),
+        **PLOT_LAYOUT_CLEAN,
+        xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Cantidad de Poles"),
         yaxis=dict(showgrid=False, title=None),
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', hovermode="y"
+        hovermode="y"
     )
     st.plotly_chart(fig_poles, use_container_width=True)
 
 st.divider()
 
-# ===================== 3) Vueltas Rápidas por piloto =====================
+# ===================== 3) Vueltas rápidas =====================
 st.subheader("Vueltas rápidas por piloto (Conteo por Circuito)")
 if "fastest_lap_driver" not in df_f.columns or len(df_f) == 0:
     st.info("No hay columna 'fastest_lap_driver' o no hay filas tras el filtro.")
@@ -170,7 +192,6 @@ else:
                 .size()
                 .rename(columns={"size": "fastest_laps"})
         )
-        
         if piloto_sel:
             fl = fl[fl["fastest_lap_driver"].isin(piloto_sel)]
 
@@ -180,19 +201,20 @@ else:
         fig_fl = px.bar(
             fl_sorted, y="gp_name", x="fastest_laps", color="fastest_lap_driver",
             orientation='h', category_orders={"gp_name": gp_order},
-            color_discrete_sequence=px.colors.qualitative.Dark24,
+            color_discrete_sequence=PALETTE_DISCRETE,  # Paleta unificada
             labels={"fastest_lap_driver": "Piloto", "fastest_laps": "Vueltas Rápidas", "gp_name": "Gran Premio"},
             title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
         )
         fig_fl.update_layout(
-            height=600, margin=dict(l=10, r=10, t=60, b=10),
-            legend_title_text="Piloto", yaxis_title="Gran Premio", xaxis_title="Vueltas Rápidas (Conteo)",
-            showlegend=True, yaxis={'categoryorder': 'array', 'categoryarray': list(reversed(gp_order))}
+            **PLOT_LAYOUT_CLEAN,
+            height=600,
+            legend_title_text="Piloto",
+            yaxis_title=None,
+            xaxis_title="Vueltas Rápidas",
+            yaxis={'categoryorder': 'array', 'categoryarray': list(reversed(gp_order))}
         )
-        fig_fl.update_xaxes(tick0=0, dtick=1)
+        fig_fl.update_xaxes(tick0=0, dtick=1, showgrid=True, gridcolor='rgba(200,200,200,0.2)')
         st.plotly_chart(fig_fl, use_container_width=True)
-    else:
-        st.warning("¡Advertencia! Asegúrate de que las columnas 'gp_name' y 'date' estén en tu DataFrame.")
 
 st.divider()
 
@@ -216,20 +238,23 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
     
     heatmap_data = conv.pivot_table(index='pole_driver', columns='season', values='conversion_pct', fill_value=0).round(1)
     heatmap_data['avg_conversion'] = heatmap_data.mean(axis=1)
-    
     bar_data = heatmap_data[['avg_conversion']].reset_index().sort_values('avg_conversion', ascending=True) 
     
     st.write("### 📊 Eficiencia Promedio - Conversión Pole → Victoria")
     fig_bar = px.bar(
         bar_data, x='avg_conversion', y='pole_driver', orientation='h',
         title='Promedio de Porcentaje de Conversión Pole → Victoria por Piloto',
-        color='avg_conversion', color_continuous_scale='RdYlGn',
+        color='avg_conversion',
+        color_continuous_scale=PALETTE_SEQUENTIAL,  # Escala monocromática azul accesible
         labels={'avg_conversion': 'Conversión Promedio (%)', 'pole_driver': 'Piloto'},
     )
-    fig_bar.update_traces(marker_line_color='black', marker_line_width=0.5, texttemplate='%{x:.1f}%', textposition='outside')
+    fig_bar.update_traces(marker_line_width=0, texttemplate='%{x:.1f}%', textposition='outside')
     fig_bar.update_layout(
-        height=max(500, 30 * len(bar_data)), xaxis_title="Conversión Promedio (%)",
-        yaxis_title="Piloto", coloraxis_showscale=False, margin=dict(l=10, r=100, t=50, b=10)
+        **PLOT_LAYOUT_CLEAN,
+        height=max(400, 35 * len(bar_data)),
+        xaxis_title="Conversión Promedio (%)",
+        yaxis_title=None,
+        coloraxis_showscale=False
     )
     st.plotly_chart(fig_bar, use_container_width=True)
     
@@ -273,10 +298,18 @@ if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
     fig_status = px.bar(
         status_melted, x="season", y="Cantidad", color="Tipo", title="Total de Incidentes por Temporada",
         barmode="stack", category_orders={"season": season_order},
-        color_discrete_map={"Abandonos (DNFs)": "#EF553B", "Descalificados (DSQs)": "#636EFA", "No Clasificados (NCs)": "#FFA15A"},
+        # Mapa de color semántico alineado con el sistema de diseño
+        color_discrete_map={
+            "Abandonos (DNFs)": COLOR_DANGER,
+            "Descalificados (DSQs)": COLOR_NEUTRAL,
+            "No Clasificados (NCs)": COLOR_WARNING
+        },
         labels={"season": "Temporada", "Cantidad": "Cantidad total", "Tipo": "Tipo de Incidente"}
     )
-    fig_status.update_layout(margin=dict(l=10, r=10, t=60, b=10), legend_title_text="Estado")
+    fig_status.update_layout(
+        **PLOT_LAYOUT_CLEAN,
+        legend_title_text="Estado"
+    )
     st.plotly_chart(fig_status, use_container_width=True)
 else:
     st.info("⚠️ Las columnas de confiabilidad no están presentes.")

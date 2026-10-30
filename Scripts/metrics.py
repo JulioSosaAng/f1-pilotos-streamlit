@@ -210,6 +210,9 @@ class Metrics:
             "empty_avg_pitstops": _empty_count("avg_pitstops_per_driver"),
             "empty_dnfs": _empty_count("dnfs"),
             "sum_dnfs": _sum_numeric("dnfs"),
+            "sum_dsqs": _sum_numeric("dsqs"),
+            "sum_ncs": _sum_numeric("ncs"),
+
         }
 
     # ------------------------------------------------------------------

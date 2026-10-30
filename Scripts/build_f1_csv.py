@@ -167,15 +167,30 @@ def extract_podium_and_fastest(results: List[Dict[str, Any]]) -> Tuple[Dict[str,
             break
     return out, (fl_entry or {})
 
-def compute_dnfs(results: List[Dict[str, Any]]) -> int:
-    dnfs = 0
+def compute_race_status(results: List[Dict[str, Any]]) -> Dict[str, int]:
+    stats = {"dnfs": 0, "dsqs": 0, "ncs": 0}
+    
     for res in results:
-        status = (res.get("status") or "").lower()
-        # finished variations include "+1 lap", "+2 laps", "finished"
-        if ("finished" in status) or ("lap" in status and "+" in status):
+        status = (res.get("status") or "").lower().strip()
+        
+        # 1. Terminó la carrera (en la vuelta del líder o doblado)
+        if "finished" in status or "lap" in status:
             continue
-        dnfs += 1
-    return dnfs
+        
+        # 2. Descalificado (DSQ)
+        if "disqualified" in status:
+            stats["dsqs"] += 1
+            continue
+            
+        # 3. No clasificado (NC) o no calificó (DNQ)
+        if "not classified" in status or "did not" in status:
+            stats["ncs"] += 1
+            continue
+            
+        # 4. Abandono real (DNF)
+        stats["dnfs"] += 1
+        
+    return stats
 
 def compute_avg_pitstops(season: int, rnd: int) -> str:
     # Disponible desde 2012
@@ -238,7 +253,15 @@ def fill_row_from_api(season: int, rnd: int, race_info: Dict[str, Any]) -> Dict[
         row["fastest_lap_time"] = ""
         row["fastest_lap_lap"] = ""
 
-    row["dnfs"] = compute_dnfs(results) if results else ""
+    if results:
+        race_stats = compute_race_status(results)
+        row["dnfs"] = race_stats["dnfs"]
+        row["dsqs"] = race_stats["dsqs"]
+        row["ncs"] = race_stats["ncs"]
+    else:
+        row["dnfs"] = ""
+        row["dsqs"] = ""
+        row["ncs"] = ""
     row["avg_pitstops_per_driver"] = compute_avg_pitstops(season, rnd)
 
     # placeholders (no disponibles en Ergast)
@@ -320,7 +343,7 @@ def build_dataframe() -> pd.DataFrame:
         "pole_driver","pole_team","pole_time",
         "winner_driver","winner_team","p2_driver","p3_driver",
         "fastest_lap_driver","fastest_lap_team","fastest_lap_time","fastest_lap_lap",
-        "safety_cars","vscs","red_flags","dnfs","avg_pitstops_per_driver",
+        "safety_cars","vscs","red_flags","dnfs","dsqs","ncs","avg_pitstops_per_driver",
         "weather_summary","air_temp_c","track_temp_c","rain_probability_pct",
         "attendance","notes"
     ]

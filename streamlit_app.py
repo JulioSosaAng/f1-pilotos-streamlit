@@ -214,11 +214,15 @@ else:
             fl_sorted, y="gp_name", x="fastest_laps", color="fastest_lap_driver",
             orientation='h', category_orders={"gp_name": gp_order},
             color_discrete_sequence=PALETTE_DISCRETE,
-            text="fastest_laps", # FIX 3: Etiqueta directa
             labels={"fastest_lap_driver": "Piloto", "fastest_laps": "Vueltas Rápidas", "gp_name": "Gran Premio"},
             title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
         )
-        fig_fl.update_traces(textposition='outside', marker_line_width=0)
+        fig_fl.update_traces(
+            hovertemplate="<b>%{y}</b><br>Piloto: %{data.name}<br>Vueltas: <b>%{x}</b><extra></extra>", 
+            insidetextanchor='middle',
+            marker_line_width=0,
+            textfont_color='white' # Mejora contraste
+        )
         fig_fl.update_layout(
             **PLOT_LAYOUT_CLEAN,
             height=600,
@@ -314,7 +318,6 @@ if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
     fig_status = px.bar(
         status_melted, x="season", y="Cantidad", color="Tipo", title="Total de Incidentes por Temporada",
         barmode="stack", category_orders={"season": season_order},
-        text="Cantidad", # FIX 3: Etiqueta directa dentro de apilados
         color_discrete_map={
             "Abandonos (DNFs)": COLOR_DANGER,
             "Descalificados (DSQs)": COLOR_NEUTRAL,
@@ -322,11 +325,15 @@ if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
         },
         labels={"season": "Temporada", "Cantidad": "Cantidad total", "Tipo": "Tipo de Incidente"}
     )
-    fig_status.update_traces(textposition='inside', marker_line_width=0)
+    fig_status.update_traces(
+            hovertemplate="<b>%{x}</b><br>Estado: %{data.name}<br>Cantidad: <b>%{y}</b><extra></extra>",
+            insidetextanchor='middle', 
+            marker_line_width=0,
+            textfont_color='white'
+        )
     fig_status.update_layout(
         **PLOT_LAYOUT_CLEAN,
         legend_title_text="Estado",
-        # FIX 3: Desaparece la cuadrícula del eje Y
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
         xaxis=dict(showgrid=False, zeroline=False, title=None)
     )

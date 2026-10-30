@@ -30,6 +30,8 @@ import argparse
 import sys
 import time
 import random
+import os
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
@@ -38,6 +40,7 @@ import pandas as pd
 
 JOLPICA_BASE = "https://api.jolpi.ca/ergast/f1"
 ERGAST_BASE = "https://ergast.com/api/f1"
+CHECKPOINT_FILE = "checkpoint.jsonl"
 
 HEADERS = {"User-Agent": "F1 Data Builder (github.com/your-handle)"}
 
@@ -248,6 +251,17 @@ def build_dataframe() -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
     seasons_to_fetch = [2024, 2025, 2026]
 
+    # 1. Cargar progreso anterior (NUEVO)
+    checkpoint_data = {}
+    if os.path.exists(CHECKPOINT_FILE):
+        print(f"📦 Leyendo checkpoint anterior: {CHECKPOINT_FILE}")
+        with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    row = json.loads(line)
+                    # Guardamos en un dict usando season_round como clave
+                    checkpoint_data[f"{row.get('season')}_{row.get('round')}"] = row
+
     for season in seasons_to_fetch:
         print(f"\n--- Procesando temporada {season} ---")
         races = season_schedule(season)
@@ -266,12 +280,16 @@ def build_dataframe() -> pd.DataFrame:
             gp_name = r_info.get("raceName", "Desconocido")
             date_str = r_info.get("date", "")
             
-            # Validación estricta por fecha para evitar procesar carreras futuras en 2026
             if season == 2026 and date_str > pd.Timestamp.today().strftime('%Y-%m-%d'):
-                print(f"  -> Ronda {rnd} ({gp_name}): Omitida por ser futura ({date_str})")
                 continue
 
-            # Mecanismo de reintento (hasta 3 intentos si la API falla o responde con retraso)
+            # 2. Verificar si ya lo descargamos (NUEVO)
+            key = f"{season}_{rnd}"
+            if key in checkpoint_data:
+                print(f"  -> Ronda {rnd} ({gp_name}): Ya en checkpoint, saltando...")
+                rows.append(checkpoint_data[key])
+                continue
+
             max_intentos = 3
             row = None
             
@@ -283,15 +301,16 @@ def build_dataframe() -> pd.DataFrame:
                 
                 row = fill_row_from_api(season, rnd, r_info)
                 
-                # Verificamos si trajo resultados válidos
                 if row and (row.get("winner_driver") or season < 2026):
                     break
                 
-                # Pausa antes de volver a intentar
                 time.sleep(1.5 * intento)
 
             if row and (row.get("winner_driver") or season < 2026):
                 rows.append(row)
+                # 3. Guardar la fila en el disco inmediatamente (NUEVO)
+                with open(CHECKPOINT_FILE, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(row) + "\n")
             else:
                 print(f"     [Aviso] La ronda {rnd} no devolvió resultados tras {max_intentos} intentos.")
 
@@ -362,6 +381,10 @@ def main():
 
     df.to_csv(args.out, index=False, encoding="utf-8")
     print(f"Listo: {args.out} con {len(df)} filas.")
+
+    if os.path.exists(CHECKPOINT_FILE):
+        os.remove(CHECKPOINT_FILE)
+        print("Checkpoint eliminado (extracción 100% completada).")
 
     M.stop()                               
     M.set_dataframe_info(df)               

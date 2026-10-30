@@ -20,19 +20,25 @@ st.set_page_config(
     page_icon="🏁",
 )
 
-# ===================== Sistema de Diseño de Color Unificado =====================
-# Inspirado en Material Design & IBM Design for Data
-COLOR_PRIMARY = "#1A73E8"       # Azul corporativo (Métrica principal / Foco)
-COLOR_SECONDARY = "#4285F4"     # Azul secundario
-COLOR_NEUTRAL = "#5F6368"       # Gris neutro para elementos secundarios/DSQ
-COLOR_DANGER = "#D93025"        # Rojo para incidentes críticos (DNFs)
-COLOR_WARNING = "#F9AB00"       # Amarillo/Naranja para advertencias (NCs)
+# FIX 3: Ocultar desorden visual nativo de Streamlit (Data-Ink Ratio)
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# Paletas reutilizables
+# ===================== Sistema de Diseño de Color =====================
+COLOR_PRIMARY = "#1A73E8"       
+COLOR_SECONDARY = "#4285F4"     
+COLOR_NEUTRAL = "#5F6368"       
+COLOR_DANGER = "#D93025"        
+COLOR_WARNING = "#F9AB00"       
+
 PALETTE_DISCRETE = ["#1A73E8", "#12B5CB", "#7C4DFF", "#FF6D00", "#46BDC6", "#E52592", "#00C853"]
 PALETTE_SEQUENTIAL = "Blues"
 
-# Layout limpio reutilizable para Plotly (Tufte / Storytelling with Data)
 PLOT_LAYOUT_CLEAN = dict(
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
@@ -133,14 +139,19 @@ else:
         win_drv.sort_values(["season", "wins"], ascending=[True, False]),
         x="winner_driver", y="wins", color="season", barmode="group",
         category_orders={"season": season_order},
-        color_discrete_sequence=PALETTE_DISCRETE,  # Usando paleta unificada
+        color_discrete_sequence=PALETTE_DISCRETE,
+        text="wins", # FIX 3: Etiqueta directa
         labels={"winner_driver": "Piloto", "wins": "Victorias", "season": "Temporada"},
         title="Conteo de victorias por piloto",
     )
+    fig_win_drv.update_traces(textposition='outside', marker_line_width=0)
     fig_win_drv.update_layout(
         **PLOT_LAYOUT_CLEAN,
         xaxis_tickangle=0,
-        legend_title_text="Temporada"
+        legend_title_text="Temporada",
+        # FIX 3: Eliminación completa del eje Y visual por redundancia
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
+        xaxis=dict(showgrid=False, zeroline=False, title=None)
     )
     st.plotly_chart(fig_win_drv, use_container_width=True)
 
@@ -165,15 +176,16 @@ else:
     fig_poles = px.bar(
         poles_total, x="poles", y="pole_driver", orientation='h',
         title="Total de Poles por Piloto",
-        color_discrete_sequence=[COLOR_PRIMARY],  # Color unificado
-        text="poles",
+        color_discrete_sequence=[COLOR_PRIMARY],
+        text="poles", # FIX 3: Etiqueta directa
         labels={"pole_driver": "Piloto", "poles": "Cantidad de Poles"}
     )
     fig_poles.update_traces(textposition='outside', marker_line_width=0)
     fig_poles.update_layout(
         **PLOT_LAYOUT_CLEAN,
-        xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Cantidad de Poles"),
-        yaxis=dict(showgrid=False, title=None),
+        # FIX 3: Eliminación completa del eje X visual por redundancia
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
+        yaxis=dict(showgrid=False, zeroline=False, title=None),
         hovermode="y"
     )
     st.plotly_chart(fig_poles, use_container_width=True)
@@ -201,19 +213,21 @@ else:
         fig_fl = px.bar(
             fl_sorted, y="gp_name", x="fastest_laps", color="fastest_lap_driver",
             orientation='h', category_orders={"gp_name": gp_order},
-            color_discrete_sequence=PALETTE_DISCRETE,  # Paleta unificada
+            color_discrete_sequence=PALETTE_DISCRETE,
+            text="fastest_laps", # FIX 3: Etiqueta directa
             labels={"fastest_lap_driver": "Piloto", "fastest_laps": "Vueltas Rápidas", "gp_name": "Gran Premio"},
             title="Conteo de Vueltas Rápidas por Piloto y Gran Premio",
         )
+        fig_fl.update_traces(textposition='outside', marker_line_width=0)
         fig_fl.update_layout(
             **PLOT_LAYOUT_CLEAN,
             height=600,
             legend_title_text="Piloto",
-            yaxis_title=None,
-            xaxis_title="Vueltas Rápidas",
-            yaxis={'categoryorder': 'array', 'categoryarray': list(reversed(gp_order))}
+            yaxis={'categoryorder': 'array', 'categoryarray': list(reversed(gp_order))},
+            # FIX 3: Eliminación de desorden del eje X
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
+            yaxis_title=None
         )
-        fig_fl.update_xaxes(tick0=0, dtick=1, showgrid=True, gridcolor='rgba(200,200,200,0.2)')
         st.plotly_chart(fig_fl, use_container_width=True)
 
 st.divider()
@@ -245,15 +259,17 @@ if {"pole_driver", "winner_driver"}.issubset(df_f.columns) and len(df_f):
         bar_data, x='avg_conversion', y='pole_driver', orientation='h',
         title='Promedio de Porcentaje de Conversión Pole → Victoria por Piloto',
         color='avg_conversion',
-        color_continuous_scale=PALETTE_SEQUENTIAL,  # Escala monocromática azul accesible
+        color_continuous_scale=PALETTE_SEQUENTIAL,
         labels={'avg_conversion': 'Conversión Promedio (%)', 'pole_driver': 'Piloto'},
     )
+    # FIX 3: Remover todos los bordes (marker_line_width=0)
     fig_bar.update_traces(marker_line_width=0, texttemplate='%{x:.1f}%', textposition='outside')
     fig_bar.update_layout(
         **PLOT_LAYOUT_CLEAN,
         height=max(400, 35 * len(bar_data)),
-        xaxis_title="Conversión Promedio (%)",
-        yaxis_title=None,
+        # FIX 3: Ocultar eje X porque ya tenemos texto 'outside'
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
+        yaxis=dict(showgrid=False, zeroline=False, title=None),
         coloraxis_showscale=False
     )
     st.plotly_chart(fig_bar, use_container_width=True)
@@ -298,7 +314,7 @@ if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
     fig_status = px.bar(
         status_melted, x="season", y="Cantidad", color="Tipo", title="Total de Incidentes por Temporada",
         barmode="stack", category_orders={"season": season_order},
-        # Mapa de color semántico alineado con el sistema de diseño
+        text="Cantidad", # FIX 3: Etiqueta directa dentro de apilados
         color_discrete_map={
             "Abandonos (DNFs)": COLOR_DANGER,
             "Descalificados (DSQs)": COLOR_NEUTRAL,
@@ -306,9 +322,13 @@ if all(col in df_f.columns for col in ["dnfs", "dsqs", "ncs"]):
         },
         labels={"season": "Temporada", "Cantidad": "Cantidad total", "Tipo": "Tipo de Incidente"}
     )
+    fig_status.update_traces(textposition='inside', marker_line_width=0)
     fig_status.update_layout(
         **PLOT_LAYOUT_CLEAN,
-        legend_title_text="Estado"
+        legend_title_text="Estado",
+        # FIX 3: Desaparece la cuadrícula del eje Y
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=None),
+        xaxis=dict(showgrid=False, zeroline=False, title=None)
     )
     st.plotly_chart(fig_status, use_container_width=True)
 else:
